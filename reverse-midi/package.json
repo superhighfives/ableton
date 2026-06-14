@@ -10,7 +10,7 @@
     "build": "tsc --noEmit && tsx build.ts --production",
     "build:dev": "tsc --noEmit && tsx build.ts",
     "start": "pnpm build:dev && extensions-cli run",
-    "package": "pnpm build && extensions-cli package"
+    "package": "pnpm build && mkdir -p build && extensions-cli package -o build/reverse-midi-${npm_package_version}.ablx"
   },
   "dependencies": {
     "@ableton-extensions/sdk": "file:../extensions-sdk-1.0.0-beta.0/ableton-extensions-sdk-1.0.0-beta.0.tgz"
