@@ -1,0 +1,4 @@
+# pnpm needs explicit approval to run a dependency's install/build scripts.
+# esbuild's postinstall links its platform-specific binary, so allow it.
+allowBuilds:
+  esbuild: true

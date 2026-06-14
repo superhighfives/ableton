@@ -9,8 +9,8 @@
   "scripts": {
     "build": "tsc --noEmit && tsx build.ts --production",
     "build:dev": "tsc --noEmit && tsx build.ts",
-    "start": "npm run build:dev && extensions-cli run",
-    "package": "npm run build && extensions-cli package"
+    "start": "pnpm build:dev && extensions-cli run",
+    "package": "pnpm build && extensions-cli package"
   },
   "dependencies": {
     "@ableton-extensions/sdk": "file:../extensions-sdk-1.0.0-beta.0/ableton-extensions-sdk-1.0.0-beta.0.tgz"

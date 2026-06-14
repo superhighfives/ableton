@@ -9,17 +9,20 @@ note's pitch and duration, as a single undo step.
 
 - Ableton Live 12.4.5 Suite **Beta** (Extensions are Suite + beta only)
 - Node.js ≥ 22.11 (the SDK suggests v24 LTS)
+- pnpm (`npm i -g pnpm`, or via `corepack enable pnpm`)
 
 ## One-time setup
 
 From this folder:
 
 ```sh
-npm install
+pnpm install
 ```
 
 This pulls the Ableton SDK + CLI from the local `.tgz` files in
-`../extensions-sdk-1.0.0-beta.0/` and the build tools from npm.
+`../extensions-sdk-1.0.0-beta.0/` and the build tools from the registry.
+`pnpm-workspace.yaml` already approves esbuild's build script, which pnpm
+otherwise blocks by default.
 
 Then in Live: **Settings → Extensions → enable Developer Mode**. Without it,
 `npm start` cannot connect.
@@ -31,7 +34,7 @@ Then in Live: **Settings → Extensions → enable Developer Mode**. Without it,
 ## Run it
 
 ```sh
-npm start
+pnpm start
 ```
 
 This builds `src/extension.ts → dist/extension.js` and loads it into Live. You
@@ -45,12 +48,12 @@ Then in Live:
 
 ## Scripts
 
-| Script              | What it does                                            |
-| ------------------- | ------------------------------------------------------- |
-| `npm start`         | Dev build + load into Live's Extension Host             |
-| `npm run build:dev` | Dev bundle (sourcemaps)                                  |
-| `npm run build`     | Production bundle (minified)                             |
-| `npm run package`   | Production build → shareable `.ablx` archive            |
+| Script             | What it does                                 |
+| ------------------ | -------------------------------------------- |
+| `pnpm start`       | Dev build + load into Live's Extension Host  |
+| `pnpm build:dev`   | Dev bundle (sourcemaps)                       |
+| `pnpm build`       | Production bundle (minified)                  |
+| `pnpm package`     | Production build → shareable `.ablx` archive |
 
 ## Files
 

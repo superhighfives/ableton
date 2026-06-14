@@ -43,16 +43,17 @@ You'll need:
 
 - Ableton Live 12.4.5 Suite Beta (Extensions are Suite + beta only)
 - Node.js ≥ 22.11 (the SDK suggests the v24 LTS)
+- pnpm (`npm i -g pnpm`, or via `corepack enable pnpm`)
 
 Then, working from an extension folder (e.g. `reverse-midi/`):
 
 ```sh
-npm install     # pulls the SDK + CLI from the local .tgz files, plus build tools
-npm start       # builds and loads the extension into Live's Extension Host
+pnpm install    # pulls the SDK + CLI from the local .tgz files, plus build tools
+pnpm start      # builds and loads the extension into Live's Extension Host
 ```
 
 Enable **Developer Mode** in Live under *Settings → Extensions* first, or
-`npm start` can't connect.
+`pnpm start` can't connect.
 
 ## Creating a new extension
 
@@ -60,18 +61,22 @@ Scaffold a fresh project with the SDK's project creator:
 
 ```sh
 mkdir my-extension && cd my-extension
-npx file:../extensions-sdk-1.0.0-beta.0/ableton-create-extension-1.0.0-beta.0.tgz
+pnpm dlx file:../extensions-sdk-1.0.0-beta.0/ableton-create-extension-1.0.0-beta.0.tgz
 ```
 
 It asks for a name, author, and your Live install, then writes a ready-to-run
 project. See the docs in `extensions-sdk-1.0.0-beta.0/docs/` for the full guide.
+
+> The scaffolder writes npm-style scripts. If you run them with pnpm, add a
+> `pnpm-workspace.yaml` with `allowBuilds: { esbuild: true }` so pnpm runs
+> esbuild's build script (see `reverse-midi/` for an example).
 
 ## Sharing an extension
 
 From an extension folder:
 
 ```sh
-npm run package   # builds, then writes a shareable .ablx archive
+pnpm package      # builds, then writes a shareable .ablx archive
 ```
 
 A user installs the resulting `.ablx` by dropping it onto the Extensions page in
@@ -82,4 +87,4 @@ Live's settings.
 - `.env` files hold a machine-specific path to Live's Extension Host and are
   gitignored — set yours per machine.
 - `node_modules/` and `dist/` are build artifacts and are not tracked. The
-  esbuild binary is platform-specific, so run `npm install` on each machine.
+  esbuild binary is platform-specific, so run `pnpm install` on each machine.
