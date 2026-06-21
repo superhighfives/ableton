@@ -10,6 +10,23 @@ Because they're ordinary Session clips, every chord (and every progression) is
 a clip plays the chord through the track's instrument. No extra setup — just map
 your controller and start writing.
 
+## Install (the easy way)
+
+You don't need Node or the SDK just to use it:
+
+1. Download `progressive-<version>.ablx` from the
+   [Releases page](https://github.com/superhighfives/ableton/releases).
+2. In Live, open **Settings → Extensions** and drag the `.ablx` onto the page.
+3. Enable it; restart Live if prompted.
+
+**Use it:** create or select a **MIDI track**, right-click its title bar (or an
+empty clip slot on it) → **Generate Progressions…**. Choose a key, mode,
+progression, voicing, motion and output, then **Generate**. Switch to Session
+view (Tab) to launch the chord clips, or map them to a controller with Live's
+**MIDI Map mode** (⌘M).
+
+The rest of this README is for **developing** the extension from source.
+
 ## Why it works this way
 
 The Extensions SDK has no real‑time MIDI output, no custom MIDI‑mappable controls,

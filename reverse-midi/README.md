@@ -5,6 +5,20 @@ right-click menu of any MIDI clip. It mirrors every note's timing within the
 span of the existing notes (earliest start → latest end), preserving each
 note's pitch and duration, as a single undo step.
 
+## Install (the easy way)
+
+You don't need Node or the SDK just to use it:
+
+1. Download `reverse-midi-<version>.ablx` from the
+   [Releases page](https://github.com/superhighfives/ableton/releases).
+2. In Live, open **Settings → Extensions** and drag the `.ablx` onto the page.
+3. Enable it; restart Live if prompted.
+
+**Use it:** right-click any **MIDI clip** with notes → **Reverse Notes**. The
+notes flip end-to-front in one undo step (⌘Z to revert).
+
+The rest of this README is for **developing** the extension from source.
+
 ## Requirements
 
 - Ableton Live 12.4.5 Suite **Beta** (Extensions are Suite + beta only)
