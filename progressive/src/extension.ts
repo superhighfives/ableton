@@ -35,6 +35,7 @@ interface DialogResult {
   seventh: boolean;
   smart: boolean;
   direction: "up" | "down" | "random";
+  register: "level" | "up" | "down" | "random";
   destination: "session" | "arrangement";
   lengthBeats: number; // clip length / chord duration, in beats
   instrument: string; // an INSTRUMENTS value, or "None"
@@ -124,6 +125,7 @@ async function run(context: ExtensionContext<"1.0.0">, handle: Handle) {
     seventh: cfg.seventh,
     smart: cfg.smart,
     direction: cfg.direction,
+    register: cfg.register,
   });
   const totalChords = groups.reduce((n, g) => n + g.chords.length, 0);
   if (totalChords === 0) {

@@ -186,7 +186,10 @@ export interface GeneratedProgression {
   chords: ChordSpec[];
 }
 
+/** Order the chords play in. */
 export type Direction = "up" | "down" | "random";
+/** How the chords drift in register across the progression. */
+export type Register = "level" | "up" | "down" | "random";
 
 export interface GenerateOptions {
   root: number; // 0–11
@@ -196,6 +199,8 @@ export interface GenerateOptions {
   smart: boolean;
   /** Order the chords play in: as written, reversed, or shuffled. */
   direction?: Direction;
+  /** Register drift: level, rising, falling, or random octave per chord. */
+  register?: Register;
   /** MIDI pitch the first chord's root is voiced near. */
   center?: number;
 }
@@ -214,6 +219,24 @@ function orderDegrees(degrees: number[], direction: Direction): number[] {
   return degrees;
 }
 
+/**
+ * Semitone offset applied to a chord's voicing centre based on its position in
+ * the progression. "up"/"down" ramp by up to an octave across the whole
+ * progression; "random" picks a whole-octave shift per chord.
+ */
+function registerOffset(step: number, count: number, register: Register): number {
+  switch (register) {
+    case "up":
+      return Math.round((step / Math.max(1, count - 1)) * 12);
+    case "down":
+      return -Math.round((step / Math.max(1, count - 1)) * 12);
+    case "random":
+      return [-12, 0, 12][Math.floor(Math.random() * 3)];
+    default:
+      return 0;
+  }
+}
+
 /** Turn a set of selected progressions into fully voiced chord sequences. */
 export function generate(opts: GenerateOptions): GeneratedProgression[] {
   const notes = opts.seventh ? 4 : 3;
@@ -225,10 +248,12 @@ export function generate(opts: GenerateOptions): GeneratedProgression[] {
     .filter((p): p is Progression => Boolean(p))
     .map((prog) => {
       const degrees = orderDegrees(prog.degrees, opts.direction ?? "up");
+      const register = opts.register ?? "level";
       let previous: number[] | null = null;
       const chords = degrees.map((degree, step) => {
         const pcs = chordPitchClasses(opts.mode, opts.root, degree, notes);
-        const pitches = voiceChord(pcs, center, previous, opts.smart);
+        const chordCenter = center + registerOffset(step, degrees.length, register);
+        const pitches = voiceChord(pcs, chordCenter, previous, opts.smart);
         previous = pitches;
         return {
           step,

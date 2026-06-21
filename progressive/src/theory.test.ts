@@ -36,6 +36,22 @@ expect(
   ["Am", "C", "F", "G"],
 );
 expect("axis random has 4 chords", axisRandom.chords.length, 4);
+
+// --- Octave register: up rises, down falls, level is unchanged ---
+const avg = (ps: number[]) => ps.reduce((a, b) => a + b, 0) / ps.length;
+const lastVsFirst = (g: { chords: { pitches: number[] }[] }) =>
+  avg(g.chords[g.chords.length - 1].pitches) - avg(g.chords[0].pitches);
+
+const regUp = generate({
+  root: 0, mode: "major", progressionIds: ["axis"], seventh: false, smart: false, register: "up",
+})[0];
+const regDown = generate({
+  root: 0, mode: "major", progressionIds: ["axis"], seventh: false, smart: false, register: "down",
+})[0];
+expect("register up: last chord higher than first", lastVsFirst(regUp) > 6, true);
+expect("register down: last chord lower than first", lastVsFirst(regDown) < -6, true);
+// Register and order are independent: chord identities are unchanged by register.
+expect("register up keeps chord names", regUp.chords.map((c) => c.chordName), ["C", "G", "Am", "F"]);
 expect("C major triad pitch classes", pcs(cMajorAxis.chords[0].pitches), ["C", "E", "G"]);
 expect("A minor triad pitch classes", pcs(cMajorAxis.chords[2].pitches), ["A", "C", "E"]);
 

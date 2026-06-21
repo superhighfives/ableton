@@ -73,6 +73,8 @@
     }
     .alx-select:focus, .alx-input:focus { outline: 2px solid var(--c-control-outline); }
 
+    .sublabel { color: var(--c-text-secondary); width: 3.5em; flex: 0 0 auto; }
+
     /* Segmented toggle (Major / Minor) */
     .segmented { display: inline-flex; border: 1px solid var(--c-control-border); border-radius: 1em; overflow: hidden; }
     .segmented button {
@@ -156,11 +158,25 @@
       </div>
       <select id="length" class="alx-select grow" aria-label="Chord length"></select>
     </div>
+  </div>
+
+  <div class="section">
+    <div class="heading">Motion</div>
     <div class="row">
-      <div class="segmented" role="group" aria-label="Direction">
+      <span class="sublabel">Order</span>
+      <div class="segmented" role="group" aria-label="Chord order">
         <button type="button" id="dir-up" data-dir="up">Up</button>
         <button type="button" id="dir-down" data-dir="down">Down</button>
         <button type="button" id="dir-random" data-dir="random">Random</button>
+      </div>
+    </div>
+    <div class="row">
+      <span class="sublabel">Octave</span>
+      <div class="segmented" role="group" aria-label="Octave drift">
+        <button type="button" id="oct-level" data-oct="level">Level</button>
+        <button type="button" id="oct-up" data-oct="up">Up</button>
+        <button type="button" id="oct-down" data-oct="down">Down</button>
+        <button type="button" id="oct-random" data-oct="random">Random</button>
       </div>
     </div>
   </div>
@@ -225,7 +241,7 @@
     document.getElementById("dest-arrangement").addEventListener("click", () => setDest("arrangement"));
     setDest("session");
 
-    // --- Direction toggle (chord order: up / down / random) ---
+    // --- Order toggle (chord sequence: up / down / random) ---
     let direction = "up";
     function setDir(next) {
       direction = next;
@@ -237,6 +253,19 @@
       document.getElementById("dir-" + d).addEventListener("click", () => setDir(d)),
     );
     setDir("up");
+
+    // --- Octave toggle (register drift: level / up / down / random) ---
+    let register = "level";
+    function setOct(next) {
+      register = next;
+      ["level", "up", "down", "random"].forEach((o) =>
+        document.getElementById("oct-" + o).setAttribute("aria-pressed", String(register === o)),
+      );
+    }
+    ["level", "up", "down", "random"].forEach((o) =>
+      document.getElementById("oct-" + o).addEventListener("click", () => setOct(o)),
+    );
+    setOct("level");
 
     const LENGTHS = [
       { label: "½ bar", beats: 2 },
@@ -305,6 +334,7 @@
         seventh: document.getElementById("seventh").checked,
         smart: document.getElementById("smart").checked,
         direction,
+        register,
         destination,
         lengthBeats: Number(lengthSel.value),
         instrument: instrSel.value,
