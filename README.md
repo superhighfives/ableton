@@ -13,6 +13,9 @@ Live. They run on **Live 12.4.5 Suite (public beta)** or later.
 - **`reverse-midi/`** — a small working extension. It adds a **Reverse Notes**
   action to any MIDI clip's right-click menu, flipping note timing in a single
   undo step. A good template for new extensions.
+- **`progressive/`** — a songwriting tool. Right-click a MIDI track to generate
+  famous chord progressions (I–V–vi–IV, ii–V–I, 12-bar blues…) in any key as
+  looping, MIDI-mappable Session clips, grouped by progression.
 
 > **The SDK itself is not included in this repo.** Ableton's SDK license
 > forbids redistributing the Extensions SDK, so `extensions-sdk-*/` is

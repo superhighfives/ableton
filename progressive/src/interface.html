@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Progressive</title>
+  <style>
+    /* Reset */
+    *, *::before, *::after { box-sizing: border-box; }
+    *:not(dialog) { margin: 0; }
+    input, button, select { font: inherit; }
+
+    /* Live dark theme */
+    :root {
+      --p-live-ui-bg: hsl(0, 0%, 21%);
+      --p-live-control-bg: hsl(0, 0%, 16%);
+      --p-live-input-bg: hsl(0, 0%, 12%);
+      --p-live-text-primary: hsl(0, 0%, 71%);
+      --p-live-control-border: hsl(0, 0%, 7%);
+      --p-live-text-secondary: hsl(0, 0%, 41%);
+      --p-live-accent-primary: hsl(31, 100%, 67%);
+      --p-live-control-text--enabled: hsl(0, 0%, 7%);
+
+      --c-bg--0500: oklch(from var(--p-live-ui-bg) l c h);
+      --c-text-primary: oklch(from var(--p-live-text-primary) l c h);
+      --c-text-secondary: oklch(from var(--p-live-text-secondary) l c h);
+      --c-control-bg--400: oklch(from var(--p-live-control-bg) calc(l * 0.9) c h);
+      --c-control-bg--500: oklch(from var(--p-live-control-bg) l c h);
+      --c-control-border: oklch(from var(--p-live-control-border) l c h);
+      --c-control-outline: var(--c-text-secondary);
+      --c-control-on-foreground: oklch(from var(--p-live-control-text--enabled) l c h);
+      --c-input-bg-500: oklch(from var(--p-live-input-bg) l c h);
+      --c-highlight--primary: oklch(from var(--p-live-accent-primary) l c h);
+    }
+
+    html {
+      background-color: var(--c-bg--0500);
+      color: var(--c-text-primary);
+      font-family: "AbletonSansSmall", sans-serif;
+      font-size: 11.5px;
+      font-weight: 500;
+      -webkit-font-smoothing: antialiased;
+      height: 100%;
+    }
+
+    body { height: 100%; display: flex; flex-direction: column; padding: 1.25em; gap: 1em; }
+
+    h1 { font-size: 1.4rem; font-weight: 600; letter-spacing: 0.01em; }
+    h1 small { color: var(--c-text-secondary); font-weight: 500; font-size: 0.9rem; }
+
+    .section { display: flex; flex-direction: column; gap: 0.4em; }
+    .section > .heading {
+      color: var(--c-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.8rem;
+    }
+
+    .row { display: flex; gap: 0.5em; align-items: center; }
+    .row.wrap { flex-wrap: wrap; }
+    .grow { flex: 1; }
+
+    .alx-input:not([type="range"]), .alx-select {
+      font-size: 1rem;
+      line-height: 1.5;
+      background-color: var(--c-input-bg-500);
+      color: var(--c-text-primary);
+      border: 1px solid var(--c-control-border);
+      height: 22px;
+      padding: 0 0.4em;
+      outline-offset: 0;
+    }
+    .alx-select:focus, .alx-input:focus { outline: 2px solid var(--c-control-outline); }
+
+    /* Segmented toggle (Major / Minor) */
+    .segmented { display: inline-flex; border: 1px solid var(--c-control-border); border-radius: 1em; overflow: hidden; }
+    .segmented button {
+      background: var(--c-control-bg--500);
+      color: var(--c-text-primary);
+      border: 0;
+      height: 22px;
+      padding: 0 1em;
+      cursor: pointer;
+    }
+    .segmented button[aria-pressed="true"] {
+      background: var(--c-highlight--primary);
+      color: var(--c-control-on-foreground);
+    }
+
+    /* Checkable list (progressions + voicing options) */
+    .check {
+      display: flex; align-items: center; gap: 0.6em;
+      padding: 0.4em 0.5em;
+      background: var(--c-control-bg--500);
+      border: 1px solid var(--c-control-border);
+      border-radius: 4px;
+      cursor: pointer; user-select: none;
+    }
+    .check:hover { background: var(--c-control-bg--400); }
+    .check input { accent-color: var(--c-highlight--primary); width: 14px; height: 14px; cursor: pointer; }
+    .check .label { flex: 1; }
+
+    #progressions { display: flex; flex-direction: column; gap: 0.35em; max-height: 220px; overflow-y: auto; padding-right: 2px; }
+
+    .alx-button {
+      font-size: 1rem; line-height: 1;
+      background-color: var(--c-control-bg--500);
+      color: var(--c-text-primary);
+      border: 1px solid var(--c-control-border);
+      height: 24px; padding: 0 1.25em; border-radius: 1em;
+      cursor: pointer; user-select: none; white-space: nowrap;
+    }
+    .alx-button:hover { background-color: var(--c-control-bg--400); }
+    .alx-button:active, .alx-button.primary {
+      color: var(--c-control-on-foreground);
+      background-color: var(--c-highlight--primary);
+    }
+    .alx-button:focus { outline: 2px solid var(--c-control-outline); }
+
+    .footer { margin-top: auto; display: flex; gap: 0.5em; justify-content: flex-end; padding-top: 0.5em; }
+  </style>
+</head>
+
+<body>
+  <h1>Progressive <small>chord progressions for songwriting</small></h1>
+
+  <div class="section">
+    <div class="heading">Key</div>
+    <div class="row">
+      <select id="root" class="alx-select grow" aria-label="Root note"></select>
+      <div class="segmented" role="group" aria-label="Mode">
+        <button type="button" id="mode-major" data-mode="major">Major</button>
+        <button type="button" id="mode-minor" data-mode="minor">Minor</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section grow">
+    <div class="heading">Progressions</div>
+    <div id="progressions"></div>
+  </div>
+
+  <div class="section">
+    <div class="heading">Voicing</div>
+    <label class="check"><input type="checkbox" id="seventh" /><span class="label">Add 7ths</span></label>
+    <label class="check"><input type="checkbox" id="smart" /><span class="label">Smart voicings (smooth voice-leading)</span></label>
+  </div>
+
+  <div class="section">
+    <div class="heading">Output</div>
+    <div class="row">
+      <div class="segmented" role="group" aria-label="Destination">
+        <button type="button" id="dest-session" data-dest="session">Session clips</button>
+        <button type="button" id="dest-arrangement" data-dest="arrangement">Arrangement row</button>
+      </div>
+      <select id="length" class="alx-select grow" aria-label="Chord length"></select>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="heading">Instrument</div>
+    <select id="instrument" class="alx-select" aria-label="Instrument"></select>
+  </div>
+
+  <div class="footer">
+    <button type="button" class="alx-button" id="cancel">Cancel</button>
+    <button type="button" class="alx-button primary" id="generate">Generate</button>
+  </div>
+
+  <script>
+  try {
+    // Injected by the extension as a plain JS literal (no decoding needed).
+    const DEFAULTS = __DEFAULTS_JSON__;
+
+    // --- Host messaging (mac WebKit / Windows WebView2) ---
+    const webkit = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.live;
+    const webview2 = window.chrome && window.chrome.webview;
+    function send(message) {
+      if (webkit) window.webkit.messageHandlers.live.postMessage(message);
+      else if (webview2) window.chrome.webview.postMessage(message);
+    }
+    function closeWith(result) {
+      send({ method: "close_and_send", params: [JSON.stringify(result)] });
+    }
+
+    // --- State ---
+    let mode = DEFAULTS.mode === "minor" ? "minor" : "major";
+    const selected = new Set(); // progression ids
+
+    // --- Root note dropdown ---
+    const rootSel = document.getElementById("root");
+    DEFAULTS.noteNames.forEach((name, i) => {
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = name;
+      if (i === DEFAULTS.root) opt.selected = true;
+      rootSel.appendChild(opt);
+    });
+
+    // --- Instrument dropdown ---
+    const instrSel = document.getElementById("instrument");
+    DEFAULTS.instruments.forEach((name) => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name === "None" ? "None (I'll add my own)" : name;
+      instrSel.appendChild(opt);
+    });
+
+    // --- Output: destination toggle + chord-length picker ---
+    let destination = "session"; // "session" | "arrangement"
+    function setDest(next) {
+      destination = next;
+      document.getElementById("dest-session").setAttribute("aria-pressed", String(destination === "session"));
+      document.getElementById("dest-arrangement").setAttribute("aria-pressed", String(destination === "arrangement"));
+    }
+    document.getElementById("dest-session").addEventListener("click", () => setDest("session"));
+    document.getElementById("dest-arrangement").addEventListener("click", () => setDest("arrangement"));
+    setDest("session");
+
+    const LENGTHS = [
+      { label: "½ bar", beats: 2 },
+      { label: "1 bar", beats: 4 },
+      { label: "2 bars", beats: 8 },
+      { label: "4 bars", beats: 16 },
+    ];
+    const lengthSel = document.getElementById("length");
+    LENGTHS.forEach((l) => {
+      const opt = document.createElement("option");
+      opt.value = String(l.beats);
+      opt.textContent = l.label;
+      if (l.beats === 4) opt.selected = true; // default 1 bar
+      lengthSel.appendChild(opt);
+    });
+
+    // --- Progression list (re-rendered when mode changes) ---
+    const list = document.getElementById("progressions");
+    function renderProgressions() {
+      list.innerHTML = "";
+      const items = DEFAULTS.catalog[mode];
+      // Default selection: first progression of the mode, if nothing chosen yet.
+      if (selected.size === 0 && items.length) selected.add(items[0].id);
+      items.forEach((p) => {
+        const label = document.createElement("label");
+        label.className = "check";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.checked = selected.has(p.id);
+        cb.addEventListener("change", () => {
+          if (cb.checked) selected.add(p.id);
+          else selected.delete(p.id);
+        });
+        const span = document.createElement("span");
+        span.className = "label";
+        span.textContent = p.label;
+        label.append(cb, span);
+        list.appendChild(label);
+      });
+    }
+
+    function setMode(next) {
+      if (next === mode) return;
+      mode = next;
+      selected.clear(); // progression ids differ between modes
+      document.getElementById("mode-major").setAttribute("aria-pressed", String(mode === "major"));
+      document.getElementById("mode-minor").setAttribute("aria-pressed", String(mode === "minor"));
+      renderProgressions();
+    }
+
+    document.getElementById("mode-major").addEventListener("click", () => setMode("major"));
+    document.getElementById("mode-minor").addEventListener("click", () => setMode("minor"));
+    document.getElementById("mode-major").setAttribute("aria-pressed", String(mode === "major"));
+    document.getElementById("mode-minor").setAttribute("aria-pressed", String(mode === "minor"));
+    renderProgressions();
+
+    // --- Actions ---
+    function generate() {
+      closeWith({
+        root: Number(rootSel.value),
+        mode,
+        progressionIds: Array.from(selected),
+        seventh: document.getElementById("seventh").checked,
+        smart: document.getElementById("smart").checked,
+        destination,
+        lengthBeats: Number(lengthSel.value),
+        instrument: instrSel.value,
+      });
+    }
+    document.getElementById("generate").addEventListener("click", generate);
+    document.getElementById("cancel").addEventListener("click", () => closeWith({ cancelled: true }));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") generate();
+      if (e.key === "Escape") closeWith({ cancelled: true });
+    });
+  } catch (err) {
+    // Surface any init failure in the dialog itself rather than a blank panel.
+    document.body.innerHTML =
+      '<pre style="color:#ff8787;white-space:pre-wrap;padding:1em;font-size:12px">' +
+      'Progressive dialog error:\n\n' + ((err && err.stack) || String(err)) + '</pre>';
+  }
+  </script>
+</body>
+
+</html>
