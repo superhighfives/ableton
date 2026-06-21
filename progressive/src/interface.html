@@ -186,7 +186,7 @@
 
     // --- State ---
     let mode = DEFAULTS.mode === "minor" ? "minor" : "major";
-    const selected = new Set(); // progression ids
+    let selectedId = null; // a single progression id (one at a time)
 
     // --- Root note dropdown ---
     const rootSel = document.getElementById("root");
@@ -238,22 +238,25 @@
     function renderProgressions() {
       list.innerHTML = "";
       const items = DEFAULTS.catalog[mode];
-      // Default selection: first progression of the mode, if nothing chosen yet.
-      if (selected.size === 0 && items.length) selected.add(items[0].id);
+      // Default selection: first progression of the mode, if none chosen yet or
+      // the current choice doesn't exist in this mode.
+      if (!items.some((p) => p.id === selectedId)) {
+        selectedId = items.length ? items[0].id : null;
+      }
       items.forEach((p) => {
         const label = document.createElement("label");
         label.className = "check";
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.checked = selected.has(p.id);
-        cb.addEventListener("change", () => {
-          if (cb.checked) selected.add(p.id);
-          else selected.delete(p.id);
+        const radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = "progression";
+        radio.checked = p.id === selectedId;
+        radio.addEventListener("change", () => {
+          if (radio.checked) selectedId = p.id;
         });
         const span = document.createElement("span");
         span.className = "label";
         span.textContent = p.label;
-        label.append(cb, span);
+        label.append(radio, span);
         list.appendChild(label);
       });
     }
@@ -261,7 +264,7 @@
     function setMode(next) {
       if (next === mode) return;
       mode = next;
-      selected.clear(); // progression ids differ between modes
+      selectedId = null; // progression ids differ between modes
       document.getElementById("mode-major").setAttribute("aria-pressed", String(mode === "major"));
       document.getElementById("mode-minor").setAttribute("aria-pressed", String(mode === "minor"));
       renderProgressions();
@@ -278,7 +281,7 @@
       closeWith({
         root: Number(rootSel.value),
         mode,
-        progressionIds: Array.from(selected),
+        progressionIds: selectedId ? [selectedId] : [],
         seventh: document.getElementById("seventh").checked,
         smart: document.getElementById("smart").checked,
         destination,
