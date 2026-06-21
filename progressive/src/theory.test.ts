@@ -20,6 +20,22 @@ const cMajorAxis = generate({
 
 expect("axis chord names", cMajorAxis.chords.map((c) => c.chordName), ["C", "G", "Am", "F"]);
 expect("axis roman numerals", cMajorAxis.chords.map((c) => c.roman), ["I", "V", "vi", "IV"]);
+
+// --- Direction: down reverses the order, random keeps the same multiset ---
+const axisDown = generate({
+  root: 0, mode: "major", progressionIds: ["axis"], seventh: false, smart: false, direction: "down",
+})[0];
+expect("axis down reverses order", axisDown.chords.map((c) => c.chordName), ["F", "Am", "G", "C"]);
+
+const axisRandom = generate({
+  root: 0, mode: "major", progressionIds: ["axis"], seventh: false, smart: false, direction: "random",
+})[0];
+expect(
+  "axis random keeps the same chord multiset",
+  [...axisRandom.chords.map((c) => c.chordName)].sort(),
+  ["Am", "C", "F", "G"],
+);
+expect("axis random has 4 chords", axisRandom.chords.length, 4);
 expect("C major triad pitch classes", pcs(cMajorAxis.chords[0].pitches), ["C", "E", "G"]);
 expect("A minor triad pitch classes", pcs(cMajorAxis.chords[2].pitches), ["A", "C", "E"]);
 

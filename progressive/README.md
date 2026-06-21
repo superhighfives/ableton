@@ -32,6 +32,8 @@ achieved through Live's own features.
   - **Arrangement row** — chords laid end to end along the timeline, starting
     after any existing clips on the track (bar‑aligned).
 - **Chord length** is selectable — ½, 1, 2, or 4 bars (assumes 4/4).
+- **Direction** sets the chord order: **up** (as written), **down** (reversed),
+  or **random** (shuffled). Voice‑leading follows the chosen order.
 - Optionally **auto‑adds a built‑in instrument** (Drift by default) when the
   track is empty, so the chords make sound immediately.
 

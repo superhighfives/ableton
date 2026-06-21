@@ -186,14 +186,32 @@ export interface GeneratedProgression {
   chords: ChordSpec[];
 }
 
+export type Direction = "up" | "down" | "random";
+
 export interface GenerateOptions {
   root: number; // 0–11
   mode: Mode;
   progressionIds: string[];
   seventh: boolean;
   smart: boolean;
+  /** Order the chords play in: as written, reversed, or shuffled. */
+  direction?: Direction;
   /** MIDI pitch the first chord's root is voiced near. */
   center?: number;
+}
+
+/** Reorder a progression's degrees by the chosen play direction. */
+function orderDegrees(degrees: number[], direction: Direction): number[] {
+  if (direction === "down") return [...degrees].reverse();
+  if (direction === "random") {
+    const a = [...degrees];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+  return degrees;
 }
 
 /** Turn a set of selected progressions into fully voiced chord sequences. */
@@ -206,8 +224,9 @@ export function generate(opts: GenerateOptions): GeneratedProgression[] {
     .map((id) => catalog.find((p) => p.id === id))
     .filter((p): p is Progression => Boolean(p))
     .map((prog) => {
+      const degrees = orderDegrees(prog.degrees, opts.direction ?? "up");
       let previous: number[] | null = null;
-      const chords = prog.degrees.map((degree, step) => {
+      const chords = degrees.map((degree, step) => {
         const pcs = chordPitchClasses(opts.mode, opts.root, degree, notes);
         const pitches = voiceChord(pcs, center, previous, opts.smart);
         previous = pitches;

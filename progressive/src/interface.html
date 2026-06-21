@@ -156,6 +156,13 @@
       </div>
       <select id="length" class="alx-select grow" aria-label="Chord length"></select>
     </div>
+    <div class="row">
+      <div class="segmented" role="group" aria-label="Direction">
+        <button type="button" id="dir-up" data-dir="up">Up</button>
+        <button type="button" id="dir-down" data-dir="down">Down</button>
+        <button type="button" id="dir-random" data-dir="random">Random</button>
+      </div>
+    </div>
   </div>
 
   <div class="section">
@@ -217,6 +224,19 @@
     document.getElementById("dest-session").addEventListener("click", () => setDest("session"));
     document.getElementById("dest-arrangement").addEventListener("click", () => setDest("arrangement"));
     setDest("session");
+
+    // --- Direction toggle (chord order: up / down / random) ---
+    let direction = "up";
+    function setDir(next) {
+      direction = next;
+      ["up", "down", "random"].forEach((d) =>
+        document.getElementById("dir-" + d).setAttribute("aria-pressed", String(direction === d)),
+      );
+    }
+    ["up", "down", "random"].forEach((d) =>
+      document.getElementById("dir-" + d).addEventListener("click", () => setDir(d)),
+    );
+    setDir("up");
 
     const LENGTHS = [
       { label: "½ bar", beats: 2 },
@@ -284,6 +304,7 @@
         progressionIds: selectedId ? [selectedId] : [],
         seventh: document.getElementById("seventh").checked,
         smart: document.getElementById("smart").checked,
+        direction,
         destination,
         lengthBeats: Number(lengthSel.value),
         instrument: instrSel.value,

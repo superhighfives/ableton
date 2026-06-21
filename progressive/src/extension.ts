@@ -34,6 +34,7 @@ interface DialogResult {
   progressionIds: string[];
   seventh: boolean;
   smart: boolean;
+  direction: "up" | "down" | "random";
   destination: "session" | "arrangement";
   lengthBeats: number; // clip length / chord duration, in beats
   instrument: string; // an INSTRUMENTS value, or "None"
@@ -122,6 +123,7 @@ async function run(context: ExtensionContext<"1.0.0">, handle: Handle) {
     progressionIds: cfg.progressionIds,
     seventh: cfg.seventh,
     smart: cfg.smart,
+    direction: cfg.direction,
   });
   const totalChords = groups.reduce((n, g) => n + g.chords.length, 0);
   if (totalChords === 0) {
