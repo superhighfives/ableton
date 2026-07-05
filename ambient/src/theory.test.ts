@@ -7,7 +7,10 @@ import {
   gcd,
   generateBloom,
   generateDrift,
+  euclid,
   generateAleatoric,
+  generateBass,
+  generateRhythm,
   motionOffsets,
   mulberry32,
   performTrackCount,
@@ -17,8 +20,10 @@ import {
   snapToScale,
   voiceChordInRegister,
   type AleatoricOptions,
+  type BassOptions,
   type BloomOptions,
   type DriftOptions,
+  type RhythmOptions,
 } from "./theory.js";
 
 let failures = 0;
@@ -164,11 +169,42 @@ const chordShareWeighted = generateAleatoric({ ...aleaOpts, weight: "chord" }).f
 const chordShareFlat = generateAleatoric({ ...aleaOpts, weight: "scale" }).filter(isChord).length;
 assert("chord weighting favours chord tones", chordShareWeighted >= chordShareFlat);
 
+// --- Euclidean rhythm ---
+expect("euclid(4,16) is downbeat quarters", euclid(4, 16).map((h, i) => (h ? i : -1)).filter((i) => i >= 0), [0, 4, 8, 12]);
+expect("euclid(3,8) is the classic tresillo spread", euclid(3, 8).map((h, i) => (h ? i : -1)).filter((i) => i >= 0), [0, 3, 6]);
+assert("euclid places exactly `pulses` hits", euclid(5, 16).filter(Boolean).length === 5);
+assert("euclid(0,16) is silent", euclid(0, 16).every((h) => !h));
+assert("euclid clamps pulses to steps", euclid(20, 8).filter(Boolean).length === 8);
+
+// --- Rhythm generator ---
+const rhythmOpts: RhythmOptions = { root: 2, bars: 2, lowHits: 4, highHits: 7, vary: true, seed: 4 };
+const rhythm = generateRhythm(rhythmOpts);
+expect("rhythm hit count = (low + high) × bars", rhythm.length, (4 + 7) * 2);
+assert("rhythm notes are staccato", rhythm.every((n) => n.duration <= 0.25));
+assert("rhythm notes stay within the loop", rhythm.every((n) => n.startTime + n.duration <= 2 * BEATS_PER_BAR + 1e-9));
+assert("rhythm uses two pitches (low pulse + high tick)", new Set(rhythm.map((n) => n.pitch)).size === 2);
+expect("same seed reproduces the same rhythm", generateRhythm(rhythmOpts), generateRhythm(rhythmOpts));
+assert("rhythm vary=false has no probability", generateRhythm({ ...rhythmOpts, vary: false }).every((n) => n.probability === undefined));
+
+// --- Bass generator ---
+const bassBase: BassOptions = { root: 9, mode: "aeolian", bars: 4, style: "sustain", vary: false, seed: 1 };
+const sustain = generateBass(bassBase);
+expect("sustain bass is one held root", sustain.length, 1);
+assert("sustain bass spans the whole loop", sustain[0].duration === 4 * BEATS_PER_BAR);
+assert("bass sits in the low register (C1 area)", sustain.every((n) => n.pitch >= 33 && n.pitch <= 47));
+const pulse = generateBass({ ...bassBase, style: "pulse" });
+expect("pulse bass restates the root each beat", pulse.length, 4 * BEATS_PER_BAR);
+assert("pulse bass is all one pitch (the root)", new Set(pulse.map((n) => n.pitch)).size === 1);
+const walk = generateBass({ ...bassBase, style: "walk" });
+expect("walk bass has two notes per bar", walk.length, 8);
+assert("walk bass moves off the root", new Set(walk.map((n) => n.pitch)).size > 1);
+assert("bass notes never spill past the loop", walk.every((n) => n.startTime + n.duration <= 4 * BEATS_PER_BAR + 1e-9));
+
 // --- Perform track budget ---
-expect("perform counts bed + bloom + shimmer + play", performTrackCount(true, 3, true, true, true), 6);
-expect("perform bed off drops bed tracks", performTrackCount(false, 3, true, true, true), 3);
-expect("perform everything off is zero", performTrackCount(false, 3, false, false, false), 0);
-assert("max perform rig fits Push's 8-column grid", performTrackCount(true, 4, true, true, true) <= PUSH_GRID_WIDTH);
+expect("perform counts every optional layer", performTrackCount(true, 3, true, true, true, true, true), 8);
+expect("perform bed off drops bed tracks", performTrackCount(false, 3, true, true, true, true, true), 5);
+expect("perform everything off is zero", performTrackCount(false, 3, false, false, false, false, false), 0);
+assert("full perform rig fits Push's 8-column grid", performTrackCount(true, 3, true, true, true, true, true) <= PUSH_GRID_WIDTH);
 
 console.log(failures === 0 ? "\nAll ambient theory tests passed." : `\n${failures} test(s) failed.`);
 if (failures > 0) process.exit(1);

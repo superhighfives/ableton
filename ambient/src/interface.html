@@ -77,11 +77,11 @@
     }
     .alx-select:focus, .alx-input:focus { outline: 2px solid var(--c-control-outline); }
 
-    /* Tab bar */
-    .tabs { display: flex; gap: 0.3em; }
+    /* Tab bar (wraps to a second row once there are many generators) */
+    .tabs { display: flex; flex-wrap: wrap; gap: 0.3em; }
     .tab {
       position: relative;
-      flex: 1;
+      flex: 1 1 22%;
       background: var(--c-control-bg--500);
       color: var(--c-text-primary);
       border: 1px solid var(--c-control-border);
@@ -159,6 +159,8 @@
     <button type="button" class="tab" role="tab" id="tab-drift" data-tab="drift">Drift</button>
     <button type="button" class="tab" role="tab" id="tab-bloom" data-tab="bloom">Bloom</button>
     <button type="button" class="tab" role="tab" id="tab-aleatoric" data-tab="aleatoric">Aleatoric</button>
+    <button type="button" class="tab" role="tab" id="tab-rhythm" data-tab="rhythm">Rhythm</button>
+    <button type="button" class="tab" role="tab" id="tab-bass" data-tab="bass">Bass</button>
     <button type="button" class="tab" role="tab" id="tab-play" data-tab="play">Play</button>
     <button type="button" class="tab" role="tab" id="tab-perform" data-tab="perform">Perform</button>
   </div>
@@ -293,6 +295,55 @@
     <label class="check"><input type="checkbox" id="a-vary" checked /><span class="label">Evolve (per-note probability + velocity drift)</span></label>
   </div>
 
+  <!-- Rhythm panel -->
+  <div class="panel" id="panel-rhythm">
+    <div class="hint">
+      A looping pulse from two Euclidean voices — a low pulse and a high tick,
+      spread evenly across the bar. Tonal, so it sits in key on a synth; swap in
+      a Drum Rack and remap for drums.
+    </div>
+    <div class="section">
+      <div class="heading">Pattern</div>
+      <div class="row">
+        <span class="sublabel">Length</span>
+        <select id="r-bars" class="alx-select grow" aria-label="Loop length"></select>
+      </div>
+      <div class="row">
+        <span class="sublabel">Low hits</span>
+        <select id="r-low" class="alx-select grow" aria-label="Low pulse hits per bar"></select>
+      </div>
+      <div class="row">
+        <span class="sublabel">High hits</span>
+        <select id="r-high" class="alx-select grow" aria-label="High tick hits per bar"></select>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" id="r-vary" checked /><span class="label">Evolve (hits fire probabilistically)</span></label>
+  </div>
+
+  <!-- Bass panel -->
+  <div class="panel" id="panel-bass">
+    <div class="hint">
+      A low-register loop on the tonic. Sustain holds one sub root; Pulse restates
+      it each beat; Walk steps root → fifth → octave for gentle movement.
+    </div>
+    <div class="section">
+      <div class="heading">Style</div>
+      <div class="segmented" role="group" aria-label="Bass style">
+        <button type="button" id="bst-sustain" data-bst="sustain">Sustain</button>
+        <button type="button" id="bst-pulse" data-bst="pulse">Pulse</button>
+        <button type="button" id="bst-walk" data-bst="walk">Walk</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="heading">Loop</div>
+      <div class="row">
+        <span class="sublabel">Length</span>
+        <select id="bs-bars" class="alx-select grow" aria-label="Loop length"></select>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" id="bs-vary" checked /><span class="label">Evolve (per-note probability + velocity drift)</span></label>
+  </div>
+
   <!-- Play panel -->
   <div class="panel" id="panel-play">
     <div class="hint">
@@ -351,6 +402,17 @@
           <button type="button" id="pchd-add9" data-pchd="add9">Add9</button>
         </div>
       </div>
+    </div>
+    <div class="section">
+      <label class="check"><input type="checkbox" id="p-bass" checked /><span class="label">Bass (tonic pedal under the harmony)</span></label>
+      <div class="segmented" role="group" aria-label="Bass style">
+        <button type="button" id="pbst-sustain" data-pbst="sustain">Sustain</button>
+        <button type="button" id="pbst-pulse" data-pbst="pulse">Pulse</button>
+        <button type="button" id="pbst-walk" data-pbst="walk">Walk</button>
+      </div>
+    </div>
+    <div class="section">
+      <label class="check"><input type="checkbox" id="p-rhythm" /><span class="label">Rhythm (Euclidean pulse)</span></label>
     </div>
     <div class="section">
       <label class="check"><input type="checkbox" id="p-shimmer" checked /><span class="label">Aleatoric shimmer (sparkle layer)</span></label>
@@ -443,10 +505,12 @@
     fillRange(document.getElementById("voices"), 1, 4, 3);
     fillRange(document.getElementById("b-layers"), 2, 4, 3);
     fillRange(document.getElementById("b-steps"), 2, 8, 4);
-    fillRange(document.getElementById("p-bed-layers"), 2, 4, 3);
+    fillRange(document.getElementById("p-bed-layers"), 2, 3, 3); // capped so the full rig fits Push's 8 columns
     fillRange(document.getElementById("p-bloom-steps"), 2, 8, 4);
     fillRange(document.getElementById("p-shimmer-density"), 1, 6, 2);
     fillRange(document.getElementById("a-density"), 1, 6, 2);
+    fillRange(document.getElementById("r-low"), 0, 8, 4);
+    fillRange(document.getElementById("r-high"), 0, 16, 7);
     [
       { bars: 2, label: "2 bars" },
       { bars: 4, label: "4 bars" },
@@ -469,6 +533,17 @@
       if (o.bars === 16) opt.selected = true;
       document.getElementById("a-bars").appendChild(opt);
     });
+    function fillBars(id, values, def) {
+      values.forEach((b) => {
+        const opt = document.createElement("option");
+        opt.value = String(b);
+        opt.textContent = b + (b === 1 ? " bar" : " bars");
+        if (b === def) opt.selected = true;
+        document.getElementById(id).appendChild(opt);
+      });
+    }
+    fillBars("r-bars", [1, 2, 4], 2);
+    fillBars("bs-bars", [1, 2, 4], 4);
 
     // --- Play instrument dropdown (defaults to a distinct playable voice) ---
     const playSel = document.getElementById("p-play-instrument");
@@ -486,6 +561,8 @@
       drift: document.getElementById("panel-drift"),
       bloom: document.getElementById("panel-bloom"),
       aleatoric: document.getElementById("panel-aleatoric"),
+      rhythm: document.getElementById("panel-rhythm"),
+      bass: document.getElementById("panel-bass"),
       play: document.getElementById("panel-play"),
       perform: document.getElementById("panel-perform"),
     };
@@ -544,6 +621,8 @@
     const getPMotion = segmented(["rise", "fall", "wave", "random"], "pmot-", "wave");
     const getPChord = segmented(["triad", "quartal", "add9"], "pchd-", "triad");
     const getShimmerSpread = segmented(["narrow", "wide", "full"], "pshm-", "wide");
+    const getBassStyle = segmented(["sustain", "pulse", "walk"], "bst-", "sustain");
+    const getPerformBass = segmented(["sustain", "pulse", "walk"], "pbst-", "sustain");
 
     // --- Actions ---
     function generate() {
@@ -577,6 +656,17 @@
           weight: getAleaWeight(),
           vary: document.getElementById("a-vary").checked,
         },
+        rhythm: {
+          bars: Number(document.getElementById("r-bars").value),
+          lowHits: Number(document.getElementById("r-low").value),
+          highHits: Number(document.getElementById("r-high").value),
+          vary: document.getElementById("r-vary").checked,
+        },
+        bass: {
+          bars: Number(document.getElementById("bs-bars").value),
+          style: getBassStyle(),
+          vary: document.getElementById("bs-vary").checked,
+        },
         play: {
           arm: document.getElementById("pl-arm").checked,
           arp: document.getElementById("pl-arp").checked,
@@ -590,6 +680,9 @@
           bloomSteps: Number(document.getElementById("p-bloom-steps").value),
           bloomMotion: getPMotion(),
           bloomChord: getPChord(),
+          rhythmOn: document.getElementById("p-rhythm").checked,
+          bassOn: document.getElementById("p-bass").checked,
+          bassStyle: getPerformBass(),
           shimmerOn: document.getElementById("p-shimmer").checked,
           shimmerDensity: Number(document.getElementById("p-shimmer-density").value),
           shimmerSpread: getShimmerSpread(),

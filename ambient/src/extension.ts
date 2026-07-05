@@ -13,13 +13,16 @@ import {
 import dialogHtml from "./interface.html";
 import {
   generateAleatoric,
+  generateBass,
   generateBloom,
   generateDrift,
+  generateRhythm,
   MODES,
   NOTE_NAMES,
   performTrackCount,
   type AleaLength,
   type AleaWeight,
+  type BassStyle,
   type ChordKind,
   type ModeId,
   type MotionId,
@@ -38,7 +41,7 @@ const AMBIENT_TEMPO = 70;
 /** What the dialog posts back. */
 interface DialogResult {
   cancelled?: boolean;
-  tab: "drift" | "bloom" | "aleatoric" | "play" | "perform";
+  tab: "drift" | "bloom" | "aleatoric" | "rhythm" | "bass" | "play" | "perform";
   root: number;
   mode: ModeId;
   instrument: string; // an INSTRUMENTS value, or "None"
@@ -67,6 +70,17 @@ interface DialogResult {
     weight: AleaWeight;
     vary: boolean;
   };
+  rhythm: {
+    bars: number;
+    lowHits: number;
+    highHits: number;
+    vary: boolean;
+  };
+  bass: {
+    bars: number;
+    style: BassStyle;
+    vary: boolean;
+  };
   play: {
     arm: boolean;
     arp: boolean;
@@ -80,6 +94,9 @@ interface DialogResult {
     bloomSteps: number;
     bloomMotion: MotionId;
     bloomChord: ChordKind;
+    rhythmOn: boolean;
+    bassOn: boolean;
+    bassStyle: BassStyle;
     shimmerOn: boolean;
     shimmerDensity: number;
     shimmerSpread: SpreadId;
@@ -88,6 +105,12 @@ interface DialogResult {
     vary: boolean;
   };
 }
+
+/** Fixed rhythm/bass settings in the Perform rig (kept off the panel). */
+const PERFORM_RHYTHM_BARS = 2;
+const PERFORM_RHYTHM_LOW_HITS = 4;
+const PERFORM_RHYTHM_HIGH_HITS = 7;
+const PERFORM_BASS_BARS = 4;
 
 /** Fixed shimmer settings in the Perform rig (kept off the panel for brevity). */
 const PERFORM_SHIMMER_BARS = 8;
@@ -156,6 +179,10 @@ async function run(context: ExtensionContext<"1.0.0">, handle: Handle) {
     await runBloom(context, track, cfg);
   } else if (cfg.tab === "aleatoric") {
     await runAleatoric(context, track, cfg);
+  } else if (cfg.tab === "rhythm") {
+    await runRhythm(context, track, cfg);
+  } else if (cfg.tab === "bass") {
+    await runBass(context, track, cfg);
   } else if (cfg.tab === "play") {
     await runPlay(context, track, cfg);
   } else if (cfg.tab === "perform") {
@@ -341,6 +368,48 @@ async function runBloom(
 }
 
 /**
+ * Write one looping clip onto the anchor track (building its instrument + FX
+ * chain if empty, and reusing an empty scene row). Shared by the single-clip
+ * generators — Aleatoric, Rhythm and Bass.
+ */
+async function writeSingleLoop(
+  context: ExtensionContext<"1.0.0">,
+  anchor: MidiTrack<"1.0.0">,
+  cfg: DialogResult,
+  spec: {
+    progressTitle: string;
+    trackName: string;
+    clipName: string;
+    sceneName: string;
+    bars: number;
+    color: number;
+    notes: NoteDescription[];
+  },
+) {
+  const song = context.application.song;
+  await context.ui.withinProgressDialog(spec.progressTitle, { progress: 0 }, async (update, signal) => {
+    anchor.name = spec.trackName;
+    if (anchor.devices.length === 0) {
+      await buildAmbientChain(anchor, cfg.instrument, cfg.addFx);
+    }
+    if (signal.aborted) return;
+    await update("Writing clip…", 50);
+
+    const base = await reserveScenes(song, [anchor], 1);
+    const slot = anchor.clipSlots[base];
+    if (!slot) throw new Error(`no clip slot at scene ${base}`);
+    const clip = await slot.createMidiClip(spec.bars * 4);
+    clip.notes = spec.notes;
+    clip.name = spec.clipName;
+    clip.looping = true;
+    setColor(clip, spec.color);
+    const scene = song.scenes[base];
+    if (scene && !scene.name) scene.name = spec.sceneName;
+    await update("Done", 100);
+  });
+}
+
+/**
  * Aleatoric: one long clip filled with probability-scattered notes — a
  * self-contained generative shimmer on a single track. With Evolve on, the
  * phrase re-shuffles every loop via per-note probability.
@@ -350,7 +419,6 @@ async function runAleatoric(
   anchor: MidiTrack<"1.0.0">,
   cfg: DialogResult,
 ) {
-  const song = context.application.song;
   const a = cfg.aleatoric;
   const notes = generateAleatoric({
     root: cfg.root,
@@ -363,41 +431,85 @@ async function runAleatoric(
     vary: a.vary,
     seed: Math.floor(Math.random() * 1e9),
   });
-
   console.log(
-    `Ambient/Aleatoric: start — ${notes.length} note(s) over ${a.bars} bar(s), ` +
+    `Ambient/Aleatoric: ${notes.length} note(s) over ${a.bars} bar(s), ` +
       `density=${a.density}/bar, weight=${a.weight}, key=${NOTE_NAMES[cfg.root]} ${cfg.mode}.`,
   );
+  await writeSingleLoop(context, anchor, cfg, {
+    progressTitle: "Generating ambient shimmer…",
+    trackName: "Ambient Shimmer",
+    clipName: `Shimmer · ${a.bars} bars`,
+    sceneName: "Ambient · Shimmer",
+    bars: a.bars,
+    color: 0x66d9e8,
+    notes: notes as NoteDescription[],
+  });
+}
 
-  await context.ui.withinProgressDialog(
-    "Generating ambient shimmer…",
-    { progress: 0 },
-    async (update, signal) => {
-      anchor.name = "Ambient Shimmer";
-      if (anchor.devices.length === 0) {
-        await buildAmbientChain(anchor, cfg.instrument, cfg.addFx);
-      }
-      if (signal.aborted) return;
-      await update("Writing clip…", 50);
-
-      const base = await reserveScenes(song, [anchor], 1);
-      const slot = anchor.clipSlots[base];
-      if (!slot) throw new Error(`no clip slot at scene ${base}`);
-      const clip = await slot.createMidiClip(a.bars * 4);
-      clip.notes = notes as NoteDescription[];
-      clip.name = `Shimmer · ${a.bars} bars`;
-      clip.looping = true;
-      setColor(clip, 0x66d9e8);
-      const scene = song.scenes[base];
-      if (scene && !scene.name) scene.name = "Ambient · Shimmer";
-      await update("Done", 100);
-    },
-  );
-
+/**
+ * Rhythm: a looping percussive pulse from two Euclidean voices (low pulse + high
+ * tick), tonal so it sits in key on a synth.
+ */
+async function runRhythm(
+  context: ExtensionContext<"1.0.0">,
+  anchor: MidiTrack<"1.0.0">,
+  cfg: DialogResult,
+) {
+  const r = cfg.rhythm;
+  const notes = generateRhythm({
+    root: cfg.root,
+    bars: r.bars,
+    lowHits: r.lowHits,
+    highHits: r.highHits,
+    vary: r.vary,
+    seed: Math.floor(Math.random() * 1e9),
+  });
   console.log(
-    `Ambient/Aleatoric: done — ${notes.length} note(s) on "Ambient Shimmer". ` +
-      `Switch to Session view (Tab) and launch the clip.`,
+    `Ambient/Rhythm: ${notes.length} hit(s) over ${r.bars} bar(s), ` +
+      `euclid ${r.lowHits}/${r.highHits} per bar, key=${NOTE_NAMES[cfg.root]}.`,
   );
+  await writeSingleLoop(context, anchor, cfg, {
+    progressTitle: "Generating ambient rhythm…",
+    trackName: "Ambient Rhythm",
+    clipName: `Rhythm · ${r.bars} bars`,
+    sceneName: "Ambient · Rhythm",
+    bars: r.bars,
+    color: 0xffa94d,
+    notes: notes as NoteDescription[],
+  });
+}
+
+/**
+ * Bass: a low-register loop on the tonic — a sustained sub, a pulsing root, or a
+ * root/fifth/octave walk.
+ */
+async function runBass(
+  context: ExtensionContext<"1.0.0">,
+  anchor: MidiTrack<"1.0.0">,
+  cfg: DialogResult,
+) {
+  const b = cfg.bass;
+  const notes = generateBass({
+    root: cfg.root,
+    mode: cfg.mode,
+    bars: b.bars,
+    style: b.style,
+    vary: b.vary,
+    seed: Math.floor(Math.random() * 1e9),
+  });
+  console.log(
+    `Ambient/Bass: ${notes.length} note(s) over ${b.bars} bar(s), ` +
+      `style=${b.style}, key=${NOTE_NAMES[cfg.root]} ${cfg.mode}.`,
+  );
+  await writeSingleLoop(context, anchor, cfg, {
+    progressTitle: "Generating ambient bass…",
+    trackName: "Ambient Bass",
+    clipName: `Bass · ${b.style}`,
+    sceneName: "Ambient · Bass",
+    bars: b.bars,
+    color: 0x5f3dc4,
+    notes: notes as NoteDescription[],
+  });
 }
 
 /**
@@ -504,6 +616,26 @@ async function runPerform(
         seed,
       })
     : null;
+  const rhythm = p.rhythmOn
+    ? generateRhythm({
+        root: cfg.root,
+        bars: PERFORM_RHYTHM_BARS,
+        lowHits: PERFORM_RHYTHM_LOW_HITS,
+        highHits: PERFORM_RHYTHM_HIGH_HITS,
+        vary: p.vary,
+        seed,
+      })
+    : null;
+  const bass = p.bassOn
+    ? generateBass({
+        root: cfg.root,
+        mode: cfg.mode,
+        bars: PERFORM_BASS_BARS,
+        style: p.bassStyle,
+        vary: p.vary,
+        seed,
+      })
+    : null;
   const shimmer = p.shimmerOn
     ? generateAleatoric({
         root: cfg.root,
@@ -522,8 +654,9 @@ async function runPerform(
   console.log(
     `Ambient/Perform: start — key=${NOTE_NAMES[cfg.root]} ${cfg.mode}; ` +
       `bed=${bed.length} layer(s), bloom=${bloom ? bloom.steps + " step(s)" : "off"}, ` +
+      `rhythm=${rhythm ? "on" : "off"}, bass=${bass ? p.bassStyle : "off"}, ` +
       `shimmer=${shimmer ? "on" : "off"}, play=${p.playOn ? p.playInstrument : "off"}; ` +
-      `${performTrackCount(p.bedOn, p.bedLayers, p.bloomOn, p.shimmerOn, p.playOn)} track(s).`,
+      `${performTrackCount(p.bedOn, p.bedLayers, p.bloomOn, p.rhythmOn, p.bassOn, p.shimmerOn, p.playOn)} track(s).`,
   );
 
   let notesWritten = 0;
@@ -555,6 +688,10 @@ async function runPerform(
       }
       const bloomTrack = bloom ? await nextTrack() : null;
       if (bloomTrack) allTracks.push(bloomTrack);
+      const rhythmTrack = rhythm ? await nextTrack() : null;
+      if (rhythmTrack) allTracks.push(rhythmTrack);
+      const bassTrack = bass ? await nextTrack() : null;
+      if (bassTrack) allTracks.push(bassTrack);
       const shimmerTrack = shimmer ? await nextTrack() : null;
       if (shimmerTrack) allTracks.push(shimmerTrack);
       const playTrack = p.playOn ? await nextTrack() : null;
@@ -562,6 +699,28 @@ async function runPerform(
       if (allTracks.length === 0) return;
 
       const base = await reserveScenes(song, allTracks, sceneCount);
+
+      // Single loops that all live in the first reserved scene, launching
+      // together with the bed and first chord.
+      const writeBaseLoop = async (
+        track: MidiTrack<"1.0.0">,
+        trackName: string,
+        clipName: string,
+        bars: number,
+        color: number,
+        notes: NoteDescription[],
+      ) => {
+        track.name = trackName;
+        if (track.devices.length === 0) await buildAmbientChain(track, cfg.instrument, cfg.addFx);
+        const slot = track.clipSlots[base];
+        if (!slot) throw new Error(`no ${trackName} slot at scene ${base}`);
+        const clip = await slot.createMidiClip(bars * 4);
+        clip.notes = notes;
+        clip.name = clipName;
+        clip.looping = true;
+        setColor(clip, color);
+        notesWritten += notes.length;
+      };
 
       // Bed: each layer's sustained loop, all in the first reserved scene.
       await update("Writing bed…", 35);
@@ -606,20 +765,18 @@ async function runPerform(
         if (scene && !scene.name) scene.name = "Ambient · start";
       }
 
-      // Shimmer: one long probabilistic clip in the first scene, so it launches
-      // together with the bed and first chord.
+      // Rhythm, bass and shimmer: continuous loops under the moving harmony.
+      if (rhythm && rhythmTrack) {
+        await update("Writing rhythm…", 70);
+        await writeBaseLoop(rhythmTrack, "Ambient Rhythm", `Rhythm · ${PERFORM_RHYTHM_BARS} bars`, PERFORM_RHYTHM_BARS, 0xffa94d, rhythm as NoteDescription[]);
+      }
+      if (bass && bassTrack) {
+        await update("Writing bass…", 76);
+        await writeBaseLoop(bassTrack, "Ambient Bass", `Bass · ${p.bassStyle}`, PERFORM_BASS_BARS, 0x5f3dc4, bass as NoteDescription[]);
+      }
       if (shimmer && shimmerTrack) {
-        await update("Writing shimmer…", 78);
-        shimmerTrack.name = "Ambient Shimmer";
-        if (shimmerTrack.devices.length === 0) await buildAmbientChain(shimmerTrack, cfg.instrument, cfg.addFx);
-        const slot = shimmerTrack.clipSlots[base];
-        if (!slot) throw new Error(`no shimmer slot at scene ${base}`);
-        const clip = await slot.createMidiClip(PERFORM_SHIMMER_BARS * 4);
-        clip.notes = shimmer as NoteDescription[];
-        clip.name = `Shimmer · ${PERFORM_SHIMMER_BARS} bars`;
-        clip.looping = true;
-        setColor(clip, 0x66d9e8);
-        notesWritten += shimmer.length;
+        await update("Writing shimmer…", 82);
+        await writeBaseLoop(shimmerTrack, "Ambient Shimmer", `Shimmer · ${PERFORM_SHIMMER_BARS} bars`, PERFORM_SHIMMER_BARS, 0x66d9e8, shimmer as NoteDescription[]);
       }
 
       // Play track: instrument + FX, armed and empty — ready for Push Note mode.

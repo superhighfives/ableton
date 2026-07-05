@@ -436,20 +436,25 @@ export function generateBloom(opts: BloomOptions): BloomResult {
 export const PUSH_GRID_WIDTH = 8;
 
 /**
- * Tracks a Perform rig will occupy: one per drift-bed layer, one for the Bloom
- * progression, one for the aleatoric shimmer, one to play. Kept within Push's
- * 8-column grid so the whole rig fits on the hardware at once.
+ * Tracks a Perform rig will occupy: one per drift-bed layer, plus one each for
+ * the Bloom progression, rhythm, bass, aleatoric shimmer and play voice. Kept
+ * within Push's 8-column grid so the whole rig fits on the hardware at once
+ * (the Perform dialog caps the bed at 3 layers for this reason).
  */
 export function performTrackCount(
   bedOn: boolean,
   bedLayers: number,
   bloomOn: boolean,
+  rhythmOn: boolean,
+  bassOn: boolean,
   shimmerOn: boolean,
   playOn: boolean,
 ): number {
   return (
     (bedOn ? Math.max(1, bedLayers) : 0) +
     (bloomOn ? 1 : 0) +
+    (rhythmOn ? 1 : 0) +
+    (bassOn ? 1 : 0) +
     (shimmerOn ? 1 : 0) +
     (playOn ? 1 : 0)
   );
@@ -544,5 +549,132 @@ export function generateAleatoric(opts: AleatoricOptions): DriftNote[] {
     notes.push(note);
   }
   notes.sort((a, b) => a.startTime - b.startTime);
+  return notes;
+}
+
+// --- Rhythm generator --------------------------------------------------------
+
+/** Sixteenth-note steps per bar — the grid rhythm patterns are quantised to. */
+const RHYTHM_STEPS_PER_BAR = 16;
+
+/**
+ * Euclidean rhythm: spread `pulses` hits as evenly as possible across `steps`,
+ * downbeat-aligned. euclid(4,16) → beats 0,4,8,12; euclid(3,8) → 0,3,6. The even
+ * spacing is what makes these patterns feel musical rather than random.
+ */
+export function euclid(pulses: number, steps: number): boolean[] {
+  const n = Math.max(0, Math.floor(steps));
+  const k = clamp(Math.floor(pulses), 0, n);
+  if (k === 0) return new Array(n).fill(false);
+  const out: boolean[] = [];
+  let prev = -1;
+  for (let i = 0; i < n; i++) {
+    const bucket = Math.floor((i * k) / n);
+    out.push(bucket !== prev);
+    prev = bucket;
+  }
+  return out;
+}
+
+export interface RhythmOptions {
+  root: number; // 0–11
+  /** Loop length in bars. */
+  bars: number;
+  /** Euclidean hit count per bar for the low pulse voice. */
+  lowHits: number;
+  /** Euclidean hit count per bar for the high tick voice. */
+  highHits: number;
+  vary: boolean;
+  seed: number;
+}
+
+/**
+ * A looping percussive pulse from two Euclidean voices — a low pulse and a high
+ * tick, at pitches derived from the key so it sits in tune on a synth (swap in a
+ * Drum Rack and remap for actual drums). With `vary`, hits fire probabilistically
+ * so the groove keeps shifting.
+ */
+export function generateRhythm(opts: RhythmOptions): DriftNote[] {
+  const rng = mulberry32(opts.seed);
+  const stepBeats = BEATS_PER_BAR / RHYTHM_STEPS_PER_BAR;
+  const lowPat = euclid(opts.lowHits, RHYTHM_STEPS_PER_BAR);
+  const highPat = euclid(opts.highHits, RHYTHM_STEPS_PER_BAR);
+  const lowPitch = 48 + opts.root; // low pulse
+  const highPitch = 60 + opts.root; // high tick, an octave up
+
+  const hit = (pitch: number, step: number, bar: number, velocity: number, prob: number): DriftNote => {
+    const note: DriftNote = {
+      pitch,
+      startTime: (bar * RHYTHM_STEPS_PER_BAR + step) * stepBeats,
+      duration: stepBeats * 0.9, // staccato
+      velocity,
+    };
+    if (opts.vary) {
+      note.probability = clamp(prob - rng() * 0.1, 0.3, 1);
+      note.velocityDeviation = 12;
+    }
+    return note;
+  };
+
+  const notes: DriftNote[] = [];
+  for (let bar = 0; bar < Math.max(1, opts.bars); bar++) {
+    for (let s = 0; s < RHYTHM_STEPS_PER_BAR; s++) {
+      if (lowPat[s]) notes.push(hit(lowPitch, s, bar, 82, 0.92));
+      if (highPat[s]) notes.push(hit(highPitch, s, bar, 60, 0.72));
+    }
+  }
+  return notes;
+}
+
+// --- Bass generator ----------------------------------------------------------
+
+export type BassStyle = "sustain" | "pulse" | "walk";
+
+export interface BassOptions {
+  root: number; // 0–11
+  mode: ModeId;
+  /** Loop length in bars. */
+  bars: number;
+  style: BassStyle;
+  vary: boolean;
+  seed: number;
+}
+
+/**
+ * A low-register bass loop on the tonic. "sustain" holds one sub root across the
+ * whole loop; "pulse" restates the root each beat; "walk" steps root → fifth →
+ * octave per bar for gentle movement. In Perform it's a tonic pedal under the
+ * moving Bloom harmony.
+ */
+export function generateBass(opts: BassOptions): DriftNote[] {
+  const rng = mulberry32(opts.seed);
+  const rootPitch = 36 + opts.root; // C1 region
+  const totalBeats = Math.max(1, opts.bars) * BEATS_PER_BAR;
+
+  const make = (pitch: number, startTime: number, duration: number, velocity: number, prob: number): DriftNote => {
+    const note: DriftNote = { pitch, startTime, duration, velocity };
+    if (opts.vary) {
+      note.probability = clamp(prob - rng() * 0.08, 0.5, 1);
+      note.velocityDeviation = 6;
+    }
+    return note;
+  };
+
+  const notes: DriftNote[] = [];
+  if (opts.style === "sustain") {
+    notes.push(make(rootPitch, 0, totalBeats, 70, 1));
+  } else if (opts.style === "pulse") {
+    for (let beat = 0; beat < totalBeats; beat++) {
+      notes.push(make(rootPitch, beat, 0.9, 74, 0.95));
+    }
+  } else {
+    // walk: root (first half of the bar) → fifth or octave (second half).
+    for (let bar = 0; bar < Math.max(1, opts.bars); bar++) {
+      const t = bar * BEATS_PER_BAR;
+      notes.push(make(rootPitch, t, BEATS_PER_BAR / 2, 72, 0.96));
+      const upper = bar % 2 === 0 ? rootPitch + 7 : rootPitch + 12; // fifth, then octave
+      notes.push(make(upper, t + BEATS_PER_BAR / 2, BEATS_PER_BAR / 2, 66, 0.9));
+    }
+  }
   return notes;
 }
