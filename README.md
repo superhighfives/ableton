@@ -97,6 +97,41 @@ pnpm start      # builds and loads the extension into Live's Extension Host
 your terminal — handy for debugging. The host path comes from a per-machine
 `.env` (`EXTENSION_HOST_PATH`); it's gitignored, so set yours.
 
+### Control every extension from the root
+
+The extension folders are self-contained packages (each with its own
+`node_modules`), so this repo isn't a pnpm workspace. Instead a small
+zero-dependency script ([`scripts/extensions.mjs`](scripts/extensions.mjs))
+discovers every folder with a `manifest.json` and fans a command out to each:
+
+```sh
+node scripts/extensions.mjs list   # list extensions (name + version + scripts)
+pnpm build          # dev-build every extension
+pnpm build:prod     # production-build every extension
+pnpm test           # test every extension (skips ones without a test script)
+pnpm package        # write a .ablx for every extension
+pnpm install:all    # pnpm install in every extension
+
+# scope to specific extensions by folder name:
+pnpm test ambient progressive
+pnpm package ambient
+```
+
+(Use `node scripts/extensions.mjs list` for the listing — `pnpm list` is pnpm's
+own command. The root `pnpm` scripts need no install of their own.)
+
+**Running them all at once.** Live's dev Extension Host loads one extension at a
+time, so the `run` command targets a single one:
+
+```sh
+node scripts/extensions.mjs run ambient   # builds + loads ambient (= pnpm start)
+```
+
+To have *every* extension live in Live together, don't dev-run them — **package
+and install** them: `pnpm package` writes a `build/<name>-<version>.ablx` for
+each, then drag those onto **Settings → Extensions**. Installed extensions all
+run together, with no terminal open.
+
 ### Common scripts
 
 Run these from an extension folder. Not every extension defines every script —
