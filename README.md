@@ -112,6 +112,7 @@ pnpm build:prod     # production-build every extension
 pnpm test           # test every extension (skips ones without a test script)
 pnpm package        # write a .ablx for every extension
 pnpm install:all    # pnpm install in every extension
+pnpm start ambient  # build + load ONE extension into Live's dev host
 
 # scope to specific extensions by folder name:
 pnpm test ambient progressive
@@ -121,12 +122,16 @@ pnpm package ambient
 (Use `node scripts/extensions.mjs list` for the listing — `pnpm list` is pnpm's
 own command. The root `pnpm` scripts need no install of their own.)
 
-**Running them all at once.** Live's dev Extension Host loads one extension at a
-time, so the `run` command targets a single one:
+**Running one in Live.** The dev Extension Host loads one extension at a time, so
+`start` takes the extension name:
 
 ```sh
-node scripts/extensions.mjs run ambient   # builds + loads ambient (= pnpm start)
+pnpm start ambient                        # builds + loads ambient into Live
+node scripts/extensions.mjs run ambient   # the same thing
 ```
+
+(`pnpm start` with no name lists the extensions; each extension's own `pnpm
+start` still works from inside its folder.)
 
 To have *every* extension live in Live together, don't dev-run them — **package
 and install** them: `pnpm package` writes a `build/<name>-<version>.ablx` for

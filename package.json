@@ -14,6 +14,7 @@
     "build:prod": "node scripts/extensions.mjs build:prod",
     "test": "node scripts/extensions.mjs test",
     "package": "node scripts/extensions.mjs package",
+    "start": "node scripts/extensions.mjs run",
     "ext": "node scripts/extensions.mjs"
   }
 }
