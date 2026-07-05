@@ -38,7 +38,7 @@ const AMBIENT_TEMPO = 70;
 /** What the dialog posts back. */
 interface DialogResult {
   cancelled?: boolean;
-  tab: "drift" | "bloom" | "aleatoric" | "perform";
+  tab: "drift" | "bloom" | "aleatoric" | "play" | "perform";
   root: number;
   mode: ModeId;
   instrument: string; // an INSTRUMENTS value, or "None"
@@ -66,6 +66,10 @@ interface DialogResult {
     length: AleaLength;
     weight: AleaWeight;
     vary: boolean;
+  };
+  play: {
+    arm: boolean;
+    arp: boolean;
   };
   perform: {
     bedOn: boolean;
@@ -152,6 +156,8 @@ async function run(context: ExtensionContext<"1.0.0">, handle: Handle) {
     await runBloom(context, track, cfg);
   } else if (cfg.tab === "aleatoric") {
     await runAleatoric(context, track, cfg);
+  } else if (cfg.tab === "play") {
+    await runPlay(context, track, cfg);
   } else if (cfg.tab === "perform") {
     await runPerform(context, track, cfg);
   }
@@ -395,6 +401,64 @@ async function runAleatoric(
 }
 
 /**
+ * Play: turn the right-clicked track into a ready-to-play instrument — an
+ * instrument + FX chain, optionally an Arpeggiator in front, armed for Push
+ * Note mode. No clips: it's the voice you play live, in the current key.
+ */
+async function runPlay(
+  context: ExtensionContext<"1.0.0">,
+  anchor: MidiTrack<"1.0.0">,
+  cfg: DialogResult,
+) {
+  console.log(
+    `Ambient/Play: setting up "${anchor.name}" — instrument=${cfg.instrument}, ` +
+      `arp=${cfg.play.arp}, arm=${cfg.play.arm}.`,
+  );
+  await context.ui.withinProgressDialog(
+    "Setting up play instrument…",
+    { progress: 0 },
+    async (update) => {
+      await update("Building instrument chain…", 40);
+      await buildPlayTrack(anchor, {
+        instrument: cfg.instrument,
+        addFx: cfg.addFx,
+        arm: cfg.play.arm,
+        arp: cfg.play.arp,
+      });
+      await update("Done", 100);
+    },
+  );
+  console.log(
+    `Ambient/Play: done — "Ambient Play" ready. Select it on Push and hit Note mode ` +
+      `to play in ${NOTE_NAMES[cfg.root]} ${cfg.mode}.`,
+  );
+}
+
+/**
+ * Configure a track as the play voice: name it, and (only when it has no devices
+ * of its own) build an optional Arpeggiator → instrument → reverb/delay chain,
+ * then arm it. Shared by the Play tab and the Perform rig.
+ */
+async function buildPlayTrack(
+  track: MidiTrack<"1.0.0">,
+  opts: { instrument: string; addFx: boolean; arm: boolean; arp: boolean },
+) {
+  track.name = "Ambient Play";
+  if (track.devices.length === 0) {
+    // MIDI effects sit before the instrument, so add the arp first.
+    if (opts.arp) await insertDeviceSafely(track, "Arpeggiator");
+    await buildAmbientChain(track, opts.instrument, opts.addFx);
+  }
+  if (opts.arm) {
+    try {
+      track.arm = true;
+    } catch (err) {
+      console.warn("Ambient: couldn't arm the play track.", err);
+    }
+  }
+}
+
+/**
  * Perform: assemble a Push-ready rig in one pass — a Drift phasing bed (one
  * track per layer), a Bloom chord progression (one track), and an armed play
  * instrument to improvise on. Everything shares the current key and fits Push's
@@ -561,13 +625,12 @@ async function runPerform(
       // Play track: instrument + FX, armed and empty — ready for Push Note mode.
       if (playTrack) {
         await update("Arming play track…", 85);
-        playTrack.name = "Ambient Play";
-        if (playTrack.devices.length === 0) await buildAmbientChain(playTrack, p.playInstrument, cfg.addFx);
-        try {
-          playTrack.arm = true;
-        } catch (err) {
-          console.warn("Ambient: couldn't arm the play track.", err);
-        }
+        await buildPlayTrack(playTrack, {
+          instrument: p.playInstrument,
+          addFx: cfg.addFx,
+          arm: true,
+          arp: false,
+        });
       }
 
       await update("Done", 100);

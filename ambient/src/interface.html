@@ -159,6 +159,7 @@
     <button type="button" class="tab" role="tab" id="tab-drift" data-tab="drift">Drift</button>
     <button type="button" class="tab" role="tab" id="tab-bloom" data-tab="bloom">Bloom</button>
     <button type="button" class="tab" role="tab" id="tab-aleatoric" data-tab="aleatoric">Aleatoric</button>
+    <button type="button" class="tab" role="tab" id="tab-play" data-tab="play">Play</button>
     <button type="button" class="tab" role="tab" id="tab-perform" data-tab="perform">Perform</button>
   </div>
 
@@ -290,6 +291,19 @@
       </div>
     </div>
     <label class="check"><input type="checkbox" id="a-vary" checked /><span class="label">Evolve (per-note probability + velocity drift)</span></label>
+  </div>
+
+  <!-- Play panel -->
+  <div class="panel" id="panel-play">
+    <div class="hint">
+      Turns this track into a ready-to-play instrument — chosen instrument and FX
+      below, armed for the Push's Note mode. No clips: it's the voice you play
+      live, in tune with the current key.
+    </div>
+    <div class="section">
+      <label class="check"><input type="checkbox" id="pl-arm" checked /><span class="label">Arm for Push Note mode</span></label>
+      <label class="check"><input type="checkbox" id="pl-arp" /><span class="label">Add an Arpeggiator (held notes shimmer)</span></label>
+    </div>
   </div>
 
   <!-- Perform panel -->
@@ -472,8 +486,11 @@
       drift: document.getElementById("panel-drift"),
       bloom: document.getElementById("panel-bloom"),
       aleatoric: document.getElementById("panel-aleatoric"),
+      play: document.getElementById("panel-play"),
       perform: document.getElementById("panel-perform"),
     };
+    // The Sound section means something a little different per tab.
+    const SOUND_SCOPE = { perform: "· bed & chords", play: "· your instrument" };
     function setTab(next) {
       if (!panels[next]) return; // ignore disabled tabs
       tab = next;
@@ -483,8 +500,14 @@
       Object.entries(panels).forEach(([id, el]) =>
         el.classList.toggle("active", id === tab),
       );
-      // The "· bed & chords" note only makes sense on the Perform tab.
-      document.getElementById("sound-scope").style.display = tab === "perform" ? "" : "none";
+      // The Sound section's subtitle depends on what it drives on this tab.
+      const scope = document.getElementById("sound-scope");
+      if (SOUND_SCOPE[tab]) {
+        scope.textContent = SOUND_SCOPE[tab];
+        scope.style.display = "";
+      } else {
+        scope.style.display = "none";
+      }
     }
     document.querySelectorAll(".tab").forEach((b) =>
       b.addEventListener("click", () => setTab(b.dataset.tab)),
@@ -553,6 +576,10 @@
           length: getAleaLength(),
           weight: getAleaWeight(),
           vary: document.getElementById("a-vary").checked,
+        },
+        play: {
+          arm: document.getElementById("pl-arm").checked,
+          arp: document.getElementById("pl-arp").checked,
         },
         perform: {
           bedOn: document.getElementById("p-bed").checked,

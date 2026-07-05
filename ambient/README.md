@@ -15,7 +15,11 @@ locked up: tweak the notes, swap the instrument, remap the harmony.
 | **Drift** | N looping clips of **coprime bar lengths** (3, 5, 7, 11…), one per track, all in one scene. | The loops realign only after the product of their lengths, so a handful of short clips never repeat their combined state for hours — Eno's _Music for Airports_ trick. |
 | **Bloom** | An **evolving chord progression**: one clip per scene on a single track, launched in turn. | Each scene holds one diatonic chord a scale-step along the chosen motion; the register layers become the wide vertical voicing of that one clip. |
 | **Aleatoric** | One long clip **scattered by probability** — off-grid, humanized, drawn from the key. | A self-contained generative shimmer, weighted toward chord tones and re-shuffled every loop. Density, register, note length and weighting are all adjustable. |
-| **Perform** | A **Push-ready rig**: a Drift bed + a Bloom progression + an Aleatoric shimmer + an armed play instrument, in one key. | Assembles the loops-plus-instrument setup for live playing (see below). |
+| **Play** | Turns the track into a **ready-to-play instrument** — instrument + FX, an optional Arpeggiator, armed for Push's Note mode. No clips. | The voice you play live over the loops, in tune with the current key. |
+| **Perform** | A **Push-ready rig**: a Drift bed + a Bloom progression + an Aleatoric shimmer + a Play instrument, in one key. | Assembles all four into the loops-plus-instrument setup for live playing (see below). |
+
+Drift, Bloom, Aleatoric and Play each set up one "instrument" (a track); **Perform**
+composes all four into a single rig.
 
 The generators use Live's **per-note probability** and **velocity drift** (the
 "Evolve" option) so the texture keeps shifting on every loop rather than
@@ -29,7 +33,8 @@ Ableton Push (or any Session workflow):
 - a **Drift bed** (one track per phasing layer) with its loops in the first scene,
 - a **Bloom progression** down a single track's column,
 - an optional **Aleatoric shimmer** clip alongside the bed in the first scene,
-- an **armed play instrument** track — empty, ready for Push's Note mode.
+- an **armed play instrument** track — empty, ready for Push's Note mode (the
+  same setup the **Play** tab builds on its own).
 
 Each layer is optional, and the whole rig stays within Push's 8-column grid.
 
