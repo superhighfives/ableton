@@ -229,11 +229,7 @@ async function runDrift(
         clip.notes = layer.notes as NoteDescription[];
         clip.name = `${layer.role} · ${layer.bars} bars`;
         clip.looping = true;
-        try {
-          clip.color = layer.color;
-        } catch (err) {
-          console.warn("Ambient: couldn't set clip colour.", err);
-        }
+        setColor(clip, layer.color);
 
         notesWritten += layer.notes.length;
         console.log(
@@ -320,12 +316,8 @@ async function runBloom(
         clip.notes = notes as NoteDescription[];
         clip.name = label;
         clip.looping = true;
-        try {
-          // Colour scenes distinctly so the progression reads at a glance.
-          clip.color = result.layers[s % result.layers.length].color;
-        } catch (err) {
-          console.warn("Ambient: couldn't set clip colour.", err);
-        }
+        // Colour scenes distinctly so the progression reads at a glance.
+        setColor(clip, result.layers[s % result.layers.length].color);
 
         const scene = song.scenes[base + s];
         if (scene && !scene.name) scene.name = label;

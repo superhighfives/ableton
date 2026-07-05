@@ -145,6 +145,14 @@ assert("aleatoric notes sit in the wide register (G3–C6)", alea.every((n) => n
 assert("aleatoric notes start within the clip", alea.every((n) => n.startTime >= 0 && n.startTime < aleaTotal));
 assert("aleatoric notes never spill past the loop", alea.every((n) => n.startTime + n.duration <= aleaTotal + 1e-9));
 assert("aleatoric durations respect the floor", alea.every((n) => n.duration >= 0.25 - 1e-9));
+// Stress the clip end: a short, dense clip puts many notes near the boundary.
+let spillOk = true;
+for (let s = 0; s < 200; s++) {
+  const total = 2 * BEATS_PER_BAR; // 2-bar clip
+  const dense = generateAleatoric({ root: 0, mode: "ionian", bars: 2, density: 6, spread: "narrow", length: "long", weight: "scale", vary: false, seed: s });
+  if (!dense.every((n) => n.startTime + n.duration <= total + 1e-9 && n.duration >= 0.25 - 1e-9)) spillOk = false;
+}
+assert("aleatoric never spills near the clip end (200 seeds, dense)", spillOk);
 assert("aleatoric notes are sorted by start time", alea.every((n, i) => i === 0 || n.startTime >= alea[i - 1].startTime));
 assert("vary=true attaches per-note probability", alea.every((n) => typeof n.probability === "number"));
 assert("vary=false leaves probability unset", generateAleatoric({ ...aleaOpts, vary: false }).every((n) => n.probability === undefined));

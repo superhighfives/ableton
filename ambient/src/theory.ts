@@ -475,6 +475,9 @@ const ALEA_LENGTHS: Record<AleaLength, [number, number]> = {
   long: [3, 8],
 };
 
+/** Shortest note the scatter will place, in beats. */
+const MIN_NOTE_BEATS = 0.25;
+
 export interface AleatoricOptions {
   root: number; // 0–11
   mode: ModeId;
@@ -526,10 +529,11 @@ export function generateAleatoric(opts: AleatoricOptions): DriftNote[] {
 
   const notes: DriftNote[] = [];
   for (let i = 0; i < count; i++) {
-    const startTime = rng() * totalBeats;
+    // Bound the start so even the shortest note fits before the loop end, then
+    // the min below can only shorten a note — nothing ever spills past the clip.
+    const startTime = rng() * Math.max(0, totalBeats - MIN_NOTE_BEATS);
     const chosenLen = lenMin + rng() * (lenMax - lenMin);
-    // Keep notes inside the clip so nothing spills past the loop.
-    const duration = Math.max(0.25, Math.min(chosenLen, totalBeats - startTime));
+    const duration = Math.min(chosenLen, totalBeats - startTime);
     const pitch = pickPitch();
     const velocity = Math.round(clamp(52 + rng() * 24, 40, 90));
     const note: DriftNote = { pitch, startTime, duration, velocity };
