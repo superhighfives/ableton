@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ambient</title>
+  <style>
+    /* Reset */
+    *, *::before, *::after { box-sizing: border-box; }
+    *:not(dialog) { margin: 0; }
+    input, button, select { font: inherit; }
+
+    /* Live dark theme */
+    :root {
+      --p-live-ui-bg: hsl(0, 0%, 21%);
+      --p-live-control-bg: hsl(0, 0%, 16%);
+      --p-live-input-bg: hsl(0, 0%, 12%);
+      --p-live-text-primary: hsl(0, 0%, 71%);
+      --p-live-control-border: hsl(0, 0%, 7%);
+      --p-live-text-secondary: hsl(0, 0%, 41%);
+      --p-live-accent-primary: hsl(31, 100%, 67%);
+      --p-live-control-text--enabled: hsl(0, 0%, 7%);
+
+      --c-bg--0500: oklch(from var(--p-live-ui-bg) l c h);
+      --c-text-primary: oklch(from var(--p-live-text-primary) l c h);
+      --c-text-secondary: oklch(from var(--p-live-text-secondary) l c h);
+      --c-control-bg--400: oklch(from var(--p-live-control-bg) calc(l * 0.9) c h);
+      --c-control-bg--500: oklch(from var(--p-live-control-bg) l c h);
+      --c-control-border: oklch(from var(--p-live-control-border) l c h);
+      --c-control-outline: var(--c-text-secondary);
+      --c-control-on-foreground: oklch(from var(--p-live-control-text--enabled) l c h);
+      --c-input-bg-500: oklch(from var(--p-live-input-bg) l c h);
+      --c-highlight--primary: oklch(from var(--p-live-accent-primary) l c h);
+    }
+
+    html {
+      background-color: var(--c-bg--0500);
+      color: var(--c-text-primary);
+      font-family: "AbletonSansSmall", sans-serif;
+      font-size: 11.5px;
+      font-weight: 500;
+      -webkit-font-smoothing: antialiased;
+      height: 100%;
+    }
+
+    body { height: 100%; display: flex; flex-direction: column; padding: 1.25em; gap: 0.85em; }
+
+    /* Scrollable content region so a fixed-size modal fits any tab. */
+    .scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1em; padding-right: 3px; }
+
+    h1 { font-size: 1.4rem; font-weight: 600; letter-spacing: 0.01em; }
+    h1 small { color: var(--c-text-secondary); font-weight: 500; font-size: 0.9rem; }
+
+    .section { display: flex; flex-direction: column; gap: 0.4em; }
+    .section > .heading {
+      color: var(--c-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.8rem;
+    }
+
+    .row { display: flex; gap: 0.5em; align-items: center; }
+    .row.wrap { flex-wrap: wrap; }
+    .grow { flex: 1; }
+    .sublabel { color: var(--c-text-secondary); width: 5em; flex: 0 0 auto; }
+
+    .alx-input:not([type="range"]), .alx-select {
+      font-size: 1rem;
+      line-height: 1.5;
+      background-color: var(--c-input-bg-500);
+      color: var(--c-text-primary);
+      border: 1px solid var(--c-control-border);
+      height: 22px;
+      padding: 0 0.4em;
+      outline-offset: 0;
+    }
+    .alx-select:focus, .alx-input:focus { outline: 2px solid var(--c-control-outline); }
+
+    /* Tab bar */
+    .tabs { display: flex; gap: 0.3em; }
+    .tab {
+      position: relative;
+      flex: 1;
+      background: var(--c-control-bg--500);
+      color: var(--c-text-primary);
+      border: 1px solid var(--c-control-border);
+      border-radius: 4px;
+      height: 30px;
+      cursor: pointer;
+    }
+    .tab:hover:not(:disabled) { background: var(--c-control-bg--400); }
+    .tab[aria-selected="true"] {
+      background: var(--c-highlight--primary);
+      color: var(--c-control-on-foreground);
+    }
+    .tab:disabled { opacity: 0.45; cursor: not-allowed; }
+    .tab .soon {
+      position: absolute; top: 2px; right: 4px;
+      font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--c-text-secondary);
+    }
+
+    /* Segmented toggle */
+    .segmented { display: inline-flex; border: 1px solid var(--c-control-border); border-radius: 1em; overflow: hidden; }
+    .segmented button {
+      background: var(--c-control-bg--500);
+      color: var(--c-text-primary);
+      border: 0;
+      height: 22px;
+      padding: 0 0.9em;
+      cursor: pointer;
+    }
+    .segmented button[aria-pressed="true"] {
+      background: var(--c-highlight--primary);
+      color: var(--c-control-on-foreground);
+    }
+
+    /* Checkable rows */
+    .check {
+      display: flex; align-items: center; gap: 0.6em;
+      padding: 0.4em 0.5em;
+      background: var(--c-control-bg--500);
+      border: 1px solid var(--c-control-border);
+      border-radius: 4px;
+      cursor: pointer; user-select: none;
+    }
+    .check:hover { background: var(--c-control-bg--400); }
+    .check input { accent-color: var(--c-highlight--primary); width: 14px; height: 14px; cursor: pointer; }
+    .check .label { flex: 1; }
+
+    .panel { display: none; flex-direction: column; gap: 0.9em; }
+    .panel.active { display: flex; }
+    .hint { color: var(--c-text-secondary); font-size: 0.85rem; line-height: 1.4; }
+
+    .alx-button {
+      font-size: 1rem; line-height: 1;
+      background-color: var(--c-control-bg--500);
+      color: var(--c-text-primary);
+      border: 1px solid var(--c-control-border);
+      height: 24px; padding: 0 1.25em; border-radius: 1em;
+      cursor: pointer; user-select: none; white-space: nowrap;
+    }
+    .alx-button:hover { background-color: var(--c-control-bg--400); }
+    .alx-button:active, .alx-button.primary {
+      color: var(--c-control-on-foreground);
+      background-color: var(--c-highlight--primary);
+    }
+    .alx-button:focus { outline: 2px solid var(--c-control-outline); }
+
+    .footer { display: flex; gap: 0.5em; justify-content: flex-end; padding-top: 0.25em; }
+  </style>
+</head>
+
+<body>
+  <h1>Ambient <small>generative soundscapes</small></h1>
+
+  <div class="tabs" role="tablist" aria-label="Generator">
+    <button type="button" class="tab" role="tab" id="tab-drift" data-tab="drift">Drift</button>
+    <button type="button" class="tab" role="tab" id="tab-bloom" data-tab="bloom">Bloom</button>
+    <button type="button" class="tab" role="tab" id="tab-aleatoric" data-tab="aleatoric">Aleatoric</button>
+    <button type="button" class="tab" role="tab" id="tab-perform" data-tab="perform">Perform</button>
+  </div>
+
+  <div class="scroll">
+  <div class="section">
+    <div class="heading">Key</div>
+    <div class="row">
+      <select id="root" class="alx-select" aria-label="Root note"></select>
+      <select id="mode" class="alx-select grow" aria-label="Mode"></select>
+    </div>
+  </div>
+
+  <!-- Drift panel -->
+  <div class="panel" id="panel-drift">
+    <div class="hint">
+      Loops of coprime bar lengths that phase against each other endlessly — the
+      combined texture never quite repeats. Each layer gets its own track.
+    </div>
+    <div class="section">
+      <div class="heading">Layers</div>
+      <div class="row">
+        <span class="sublabel">Count</span>
+        <select id="layers" class="alx-select grow" aria-label="Layer count"></select>
+      </div>
+      <div class="row">
+        <span class="sublabel">Voices</span>
+        <select id="voices" class="alx-select grow" aria-label="Voices per layer"></select>
+      </div>
+    </div>
+    <div class="section">
+      <div class="heading">Voicing</div>
+      <div class="segmented" role="group" aria-label="Voicing">
+        <button type="button" id="voi-fifths" data-voi="fifths">Fifths</button>
+        <button type="button" id="voi-quartal" data-voi="quartal">Quartal</button>
+        <button type="button" id="voi-scale" data-voi="scale">Scale</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="heading">Register spread</div>
+      <div class="segmented" role="group" aria-label="Register spread">
+        <button type="button" id="spr-narrow" data-spr="narrow">Narrow</button>
+        <button type="button" id="spr-wide" data-spr="wide">Wide</button>
+        <button type="button" id="spr-full" data-spr="full">Full</button>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" id="vary" checked /><span class="label">Evolve (per-note probability + velocity drift)</span></label>
+  </div>
+
+  <!-- Bloom panel -->
+  <div class="panel" id="panel-bloom">
+    <div class="hint">
+      An evolving progression: each scene holds one chord a scale-step along the
+      motion. Launch the scenes in turn to walk the pad through the harmony.
+    </div>
+    <div class="section">
+      <div class="heading">Grid</div>
+      <div class="row">
+        <span class="sublabel">Layers</span>
+        <select id="b-layers" class="alx-select grow" aria-label="Layer count"></select>
+      </div>
+      <div class="row">
+        <span class="sublabel">Steps</span>
+        <select id="b-steps" class="alx-select grow" aria-label="Step count"></select>
+      </div>
+      <div class="row">
+        <span class="sublabel">Length</span>
+        <select id="b-bars" class="alx-select grow" aria-label="Bars per step"></select>
+      </div>
+    </div>
+    <div class="section">
+      <div class="heading">Motion</div>
+      <div class="segmented" role="group" aria-label="Motion">
+        <button type="button" id="mot-rise" data-mot="rise">Rise</button>
+        <button type="button" id="mot-fall" data-mot="fall">Fall</button>
+        <button type="button" id="mot-wave" data-mot="wave">Wave</button>
+        <button type="button" id="mot-random" data-mot="random">Random</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="heading">Chord</div>
+      <div class="segmented" role="group" aria-label="Chord type">
+        <button type="button" id="chd-triad" data-chd="triad">Triad</button>
+        <button type="button" id="chd-quartal" data-chd="quartal">Quartal</button>
+        <button type="button" id="chd-add9" data-chd="add9">Add9</button>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" id="b-vary" checked /><span class="label">Evolve (per-note probability + velocity drift)</span></label>
+  </div>
+
+  <!-- Aleatoric panel -->
+  <div class="panel" id="panel-aleatoric">
+    <div class="hint">
+      One long clip scattered with probability — off-grid notes, humanized
+      length and velocity, drawn from the key. A self-contained generative
+      shimmer that re-shuffles every loop.
+    </div>
+    <div class="section">
+      <div class="heading">Clip</div>
+      <div class="row">
+        <span class="sublabel">Length</span>
+        <select id="a-bars" class="alx-select grow" aria-label="Clip length"></select>
+      </div>
+      <div class="row">
+        <span class="sublabel">Density</span>
+        <select id="a-density" class="alx-select grow" aria-label="Notes per bar"></select>
+      </div>
+    </div>
+    <div class="section">
+      <div class="heading">Register</div>
+      <div class="segmented" role="group" aria-label="Register spread">
+        <button type="button" id="aspr-narrow" data-aspr="narrow">Narrow</button>
+        <button type="button" id="aspr-wide" data-aspr="wide">Wide</button>
+        <button type="button" id="aspr-full" data-aspr="full">Full</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="heading">Note length</div>
+      <div class="segmented" role="group" aria-label="Note length">
+        <button type="button" id="alen-short" data-alen="short">Short</button>
+        <button type="button" id="alen-medium" data-alen="medium">Medium</button>
+        <button type="button" id="alen-long" data-alen="long">Long</button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="heading">Pitch weighting</div>
+      <div class="segmented" role="group" aria-label="Pitch weighting">
+        <button type="button" id="awgt-chord" data-awgt="chord">Chord tones</button>
+        <button type="button" id="awgt-scale" data-awgt="scale">All scale</button>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" id="a-vary" checked /><span class="label">Evolve (per-note probability + velocity drift)</span></label>
+  </div>
+
+  <!-- Perform panel -->
+  <div class="panel" id="panel-perform">
+    <div class="hint">
+      Builds a Push-ready rig in the current key: a phasing bed, a chord
+      progression, and an armed instrument to play over the top. Launch the first
+      scene to start, then tap down the Bloom column to move the harmony.
+    </div>
+    <div class="section">
+      <label class="check"><input type="checkbox" id="p-bed" checked /><span class="label">Drift bed (phasing loops)</span></label>
+      <div class="row">
+        <span class="sublabel">Layers</span>
+        <select id="p-bed-layers" class="alx-select grow" aria-label="Bed layers"></select>
+      </div>
+      <div class="row wrap">
+        <div class="segmented" role="group" aria-label="Bed voicing">
+          <button type="button" id="pvoi-fifths" data-pvoi="fifths">Fifths</button>
+          <button type="button" id="pvoi-quartal" data-pvoi="quartal">Quartal</button>
+          <button type="button" id="pvoi-scale" data-pvoi="scale">Scale</button>
+        </div>
+        <div class="segmented" role="group" aria-label="Bed spread">
+          <button type="button" id="pspr-narrow" data-pspr="narrow">Narrow</button>
+          <button type="button" id="pspr-wide" data-pspr="wide">Wide</button>
+          <button type="button" id="pspr-full" data-pspr="full">Full</button>
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <label class="check"><input type="checkbox" id="p-bloom" checked /><span class="label">Chord progression (Bloom)</span></label>
+      <div class="row">
+        <span class="sublabel">Steps</span>
+        <select id="p-bloom-steps" class="alx-select grow" aria-label="Progression steps"></select>
+      </div>
+      <div class="row wrap">
+        <div class="segmented" role="group" aria-label="Progression motion">
+          <button type="button" id="pmot-rise" data-pmot="rise">Rise</button>
+          <button type="button" id="pmot-fall" data-pmot="fall">Fall</button>
+          <button type="button" id="pmot-wave" data-pmot="wave">Wave</button>
+          <button type="button" id="pmot-random" data-pmot="random">Random</button>
+        </div>
+        <div class="segmented" role="group" aria-label="Progression chord">
+          <button type="button" id="pchd-triad" data-pchd="triad">Triad</button>
+          <button type="button" id="pchd-quartal" data-pchd="quartal">Quartal</button>
+          <button type="button" id="pchd-add9" data-pchd="add9">Add9</button>
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <label class="check"><input type="checkbox" id="p-shimmer" checked /><span class="label">Aleatoric shimmer (sparkle layer)</span></label>
+      <div class="row wrap">
+        <span class="sublabel">Density</span>
+        <select id="p-shimmer-density" class="alx-select" style="width:5em" aria-label="Shimmer density"></select>
+        <div class="segmented" role="group" aria-label="Shimmer register">
+          <button type="button" id="pshm-narrow" data-pshm="narrow">Narrow</button>
+          <button type="button" id="pshm-wide" data-pshm="wide">Wide</button>
+          <button type="button" id="pshm-full" data-pshm="full">Full</button>
+        </div>
+      </div>
+    </div>
+    <div class="section">
+      <label class="check"><input type="checkbox" id="p-play" checked /><span class="label">Play instrument (armed for Push)</span></label>
+      <select id="p-play-instrument" class="alx-select" aria-label="Play instrument"></select>
+    </div>
+    <label class="check"><input type="checkbox" id="p-vary" checked /><span class="label">Evolve (per-note probability + velocity drift)</span></label>
+  </div>
+
+  <div class="section">
+    <div class="heading">Sound <small id="sound-scope" style="text-transform:none;letter-spacing:0;color:var(--c-text-secondary)">· bed &amp; chords</small></div>
+    <select id="instrument" class="alx-select" aria-label="Instrument"></select>
+    <label class="check"><input type="checkbox" id="addFx" checked /><span class="label">Add reverb &amp; delay, tuned wet</span></label>
+    <label class="check"><input type="checkbox" id="setTempo" /><span class="label">Set tempo to 70 BPM</span></label>
+  </div>
+  </div>
+
+  <div class="footer">
+    <button type="button" class="alx-button" id="cancel">Cancel</button>
+    <button type="button" class="alx-button primary" id="generate">Generate</button>
+  </div>
+
+  <script>
+  try {
+    // Injected by the extension as a plain JS literal (no decoding needed).
+    const DEFAULTS = __DEFAULTS_JSON__;
+
+    // --- Host messaging (mac WebKit / Windows WebView2) ---
+    const webkit = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.live;
+    const webview2 = window.chrome && window.chrome.webview;
+    function send(message) {
+      if (webkit) window.webkit.messageHandlers.live.postMessage(message);
+      else if (webview2) window.chrome.webview.postMessage(message);
+    }
+    function closeWith(result) {
+      send({ method: "close_and_send", params: [JSON.stringify(result)] });
+    }
+
+    // --- Root note dropdown ---
+    const rootSel = document.getElementById("root");
+    DEFAULTS.noteNames.forEach((name, i) => {
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = name;
+      if (i === DEFAULTS.root) opt.selected = true;
+      rootSel.appendChild(opt);
+    });
+
+    // --- Mode dropdown ---
+    const modeSel = document.getElementById("mode");
+    DEFAULTS.modes.forEach((m) => {
+      const opt = document.createElement("option");
+      opt.value = m.id;
+      opt.textContent = m.label;
+      if (m.id === DEFAULTS.mode) opt.selected = true;
+      modeSel.appendChild(opt);
+    });
+
+    // --- Instrument dropdown ---
+    const instrSel = document.getElementById("instrument");
+    DEFAULTS.instruments.forEach((name) => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name === "None" ? "None (I'll add my own)" : name;
+      instrSel.appendChild(opt);
+    });
+
+    // --- Simple numeric dropdown helper ---
+    function fillRange(sel, from, to, def) {
+      for (let v = from; v <= to; v++) {
+        const opt = document.createElement("option");
+        opt.value = String(v);
+        opt.textContent = String(v);
+        if (v === def) opt.selected = true;
+        sel.appendChild(opt);
+      }
+    }
+    fillRange(document.getElementById("layers"), 2, 6, 4);
+    fillRange(document.getElementById("voices"), 1, 4, 3);
+    fillRange(document.getElementById("b-layers"), 2, 4, 3);
+    fillRange(document.getElementById("b-steps"), 2, 8, 4);
+    fillRange(document.getElementById("p-bed-layers"), 2, 4, 3);
+    fillRange(document.getElementById("p-bloom-steps"), 2, 8, 4);
+    fillRange(document.getElementById("p-shimmer-density"), 1, 6, 2);
+    fillRange(document.getElementById("a-density"), 1, 6, 2);
+    [
+      { bars: 2, label: "2 bars" },
+      { bars: 4, label: "4 bars" },
+      { bars: 8, label: "8 bars" },
+    ].forEach((o) => {
+      const opt = document.createElement("option");
+      opt.value = String(o.bars);
+      opt.textContent = o.label;
+      if (o.bars === 4) opt.selected = true;
+      document.getElementById("b-bars").appendChild(opt);
+    });
+    [
+      { bars: 8, label: "8 bars" },
+      { bars: 16, label: "16 bars" },
+      { bars: 32, label: "32 bars" },
+    ].forEach((o) => {
+      const opt = document.createElement("option");
+      opt.value = String(o.bars);
+      opt.textContent = o.label;
+      if (o.bars === 16) opt.selected = true;
+      document.getElementById("a-bars").appendChild(opt);
+    });
+
+    // --- Play instrument dropdown (defaults to a distinct playable voice) ---
+    const playSel = document.getElementById("p-play-instrument");
+    DEFAULTS.instruments.forEach((name) => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name === "None" ? "None (I'll add my own)" : name;
+      if (name === "Meld") opt.selected = true;
+      playSel.appendChild(opt);
+    });
+
+    // --- Tabs ---
+    let tab = "drift";
+    const panels = {
+      drift: document.getElementById("panel-drift"),
+      bloom: document.getElementById("panel-bloom"),
+      aleatoric: document.getElementById("panel-aleatoric"),
+      perform: document.getElementById("panel-perform"),
+    };
+    function setTab(next) {
+      if (!panels[next]) return; // ignore disabled tabs
+      tab = next;
+      document.querySelectorAll(".tab").forEach((b) =>
+        b.setAttribute("aria-selected", String(b.dataset.tab === tab)),
+      );
+      Object.entries(panels).forEach(([id, el]) =>
+        el.classList.toggle("active", id === tab),
+      );
+      // The "· bed & chords" note only makes sense on the Perform tab.
+      document.getElementById("sound-scope").style.display = tab === "perform" ? "" : "none";
+    }
+    document.querySelectorAll(".tab").forEach((b) =>
+      b.addEventListener("click", () => setTab(b.dataset.tab)),
+    );
+    setTab("drift");
+
+    // --- Segmented helper (single-choice button group) ---
+    function segmented(ids, prefix, def) {
+      let value = def;
+      const apply = () =>
+        ids.forEach((v) =>
+          document.getElementById(prefix + v).setAttribute("aria-pressed", String(v === value)),
+        );
+      ids.forEach((v) =>
+        document.getElementById(prefix + v).addEventListener("click", () => {
+          value = v;
+          apply();
+        }),
+      );
+      apply();
+      return () => value;
+    }
+    const getVoicing = segmented(["fifths", "quartal", "scale"], "voi-", "quartal");
+    const getSpread = segmented(["narrow", "wide", "full"], "spr-", "wide");
+    const getMotion = segmented(["rise", "fall", "wave", "random"], "mot-", "wave");
+    const getChord = segmented(["triad", "quartal", "add9"], "chd-", "triad");
+    // Aleatoric panel
+    const getAleaSpread = segmented(["narrow", "wide", "full"], "aspr-", "wide");
+    const getAleaLength = segmented(["short", "medium", "long"], "alen-", "medium");
+    const getAleaWeight = segmented(["chord", "scale"], "awgt-", "chord");
+    // Perform panel (own control set → own ids)
+    const getBedVoicing = segmented(["fifths", "quartal", "scale"], "pvoi-", "quartal");
+    const getBedSpread = segmented(["narrow", "wide", "full"], "pspr-", "wide");
+    const getPMotion = segmented(["rise", "fall", "wave", "random"], "pmot-", "wave");
+    const getPChord = segmented(["triad", "quartal", "add9"], "pchd-", "triad");
+    const getShimmerSpread = segmented(["narrow", "wide", "full"], "pshm-", "wide");
+
+    // --- Actions ---
+    function generate() {
+      closeWith({
+        tab,
+        root: Number(rootSel.value),
+        mode: modeSel.value,
+        instrument: instrSel.value,
+        addFx: document.getElementById("addFx").checked,
+        setTempo: document.getElementById("setTempo").checked,
+        drift: {
+          layers: Number(document.getElementById("layers").value),
+          voices: Number(document.getElementById("voices").value),
+          voicing: getVoicing(),
+          spread: getSpread(),
+          vary: document.getElementById("vary").checked,
+        },
+        bloom: {
+          layers: Number(document.getElementById("b-layers").value),
+          steps: Number(document.getElementById("b-steps").value),
+          motion: getMotion(),
+          chord: getChord(),
+          barsPerStep: Number(document.getElementById("b-bars").value),
+          vary: document.getElementById("b-vary").checked,
+        },
+        aleatoric: {
+          bars: Number(document.getElementById("a-bars").value),
+          density: Number(document.getElementById("a-density").value),
+          spread: getAleaSpread(),
+          length: getAleaLength(),
+          weight: getAleaWeight(),
+          vary: document.getElementById("a-vary").checked,
+        },
+        perform: {
+          bedOn: document.getElementById("p-bed").checked,
+          bedLayers: Number(document.getElementById("p-bed-layers").value),
+          bedVoicing: getBedVoicing(),
+          bedSpread: getBedSpread(),
+          bloomOn: document.getElementById("p-bloom").checked,
+          bloomSteps: Number(document.getElementById("p-bloom-steps").value),
+          bloomMotion: getPMotion(),
+          bloomChord: getPChord(),
+          shimmerOn: document.getElementById("p-shimmer").checked,
+          shimmerDensity: Number(document.getElementById("p-shimmer-density").value),
+          shimmerSpread: getShimmerSpread(),
+          playOn: document.getElementById("p-play").checked,
+          playInstrument: playSel.value,
+          vary: document.getElementById("p-vary").checked,
+        },
+      });
+    }
+    document.getElementById("generate").addEventListener("click", generate);
+    document.getElementById("cancel").addEventListener("click", () => closeWith({ cancelled: true }));
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") generate();
+      if (e.key === "Escape") closeWith({ cancelled: true });
+    });
+  } catch (err) {
+    // Surface any init failure in the dialog itself rather than a blank panel.
+    document.body.innerHTML =
+      '<pre style="color:#ff8787;white-space:pre-wrap;padding:1em;font-size:12px">' +
+      'Ambient dialog error:\n\n' + ((err && err.stack) || String(err)) + '</pre>';
+  }
+  </script>
+</body>
+
+</html>

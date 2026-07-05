@@ -15,6 +15,7 @@ on **Live 12.4.5 Suite (public beta)** or later.
 | Extension | What it does | How you trigger it |
 | --- | --- | --- |
 | [**progressive**](progressive/) | Generates famous chord progressions (I–V–vi–IV, ii–V–I, 12-bar blues…) in any key/mode as MIDI chord clips, for songwriting. | Right-click a **MIDI track** → **Generate Progressions…** |
+| [**ambient**](ambient/) | Generates ambient soundscapes as looping MIDI clips: **Drift** (coprime phasing loops), **Bloom** (an evolving chord progression), **Aleatoric** (a probability-scattered shimmer), and **Perform** (a Push-ready bed + progression + armed play instrument), with tuned reverb/delay chains. | Right-click a **MIDI track** → **Generate Ambient…** |
 | [**reverse-midi**](reverse-midi/) | Reverses the timing of every note in a MIDI clip, within the span of the existing notes, as one undo step. | Right-click a **MIDI clip** → **Reverse Notes** |
 
 Each extension folder has its own README with full detail.
@@ -43,6 +44,13 @@ open. Once installed and enabled:
   mode, progression, voicing and output, then **Generate**. It writes the chords
   as Session clips (launchable and MIDI-mappable via Live's **MIDI Map mode**,
   ⌘M) or as an Arrangement row. See [progressive/README.md](progressive/README.md).
+- **ambient** — create or select a **MIDI track**, right-click it → **Generate
+  Ambient…**. Pick a key/mode and a generator — **Drift** (coprime phasing
+  loops), **Bloom** (an evolving chord progression), **Aleatoric** (a
+  probability-scattered shimmer), or **Perform** (a Push-ready bed + progression
+  + armed play instrument) — then **Generate**. It builds the tracks, scenes,
+  clips and an optional reverb/delay chain; switch to Session view (Tab) to
+  launch them. See [ambient/README.md](ambient/README.md).
 - **reverse-midi** — right-click any **MIDI clip** → **Reverse Notes**. See
   [reverse-midi/README.md](reverse-midi/README.md).
 
