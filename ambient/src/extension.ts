@@ -2,6 +2,7 @@ import {
   initialize,
   Device,
   MidiTrack,
+  Track,
   type ActivationContext,
   type ExtensionContext,
   type Handle,
@@ -26,6 +27,7 @@ import {
   type ChordKind,
   type ModeId,
   type MotionId,
+  type RhythmStyle,
   type SpreadId,
   type VoicingId,
 } from "./theory.js";
@@ -72,8 +74,7 @@ interface DialogResult {
   };
   rhythm: {
     bars: number;
-    lowHits: number;
-    highHits: number;
+    style: RhythmStyle;
     vary: boolean;
   };
   bass: {
@@ -95,6 +96,7 @@ interface DialogResult {
     bloomMotion: MotionId;
     bloomChord: ChordKind;
     rhythmOn: boolean;
+    rhythmStyle: RhythmStyle;
     bassOn: boolean;
     bassStyle: BassStyle;
     shimmerOn: boolean;
@@ -102,15 +104,17 @@ interface DialogResult {
     shimmerSpread: SpreadId;
     playOn: boolean;
     playInstrument: string;
+    softenMix: boolean;
     vary: boolean;
   };
 }
 
 /** Fixed rhythm/bass settings in the Perform rig (kept off the panel). */
 const PERFORM_RHYTHM_BARS = 2;
-const PERFORM_RHYTHM_LOW_HITS = 4;
-const PERFORM_RHYTHM_HIGH_HITS = 7;
 const PERFORM_BASS_BARS = 4;
+
+/** Live's empty drum instrument — the user drops an 808 kit onto it. */
+const DRUM_RACK = "Drum Rack";
 
 /** Fixed shimmer settings in the Perform rig (kept off the panel for brevity). */
 const PERFORM_SHIMMER_BARS = 8;
@@ -384,13 +388,15 @@ async function writeSingleLoop(
     bars: number;
     color: number;
     notes: NoteDescription[];
+    /** Override the instrument built onto an empty track (e.g. a Drum Rack). */
+    instrument?: string;
   },
 ) {
   const song = context.application.song;
   await context.ui.withinProgressDialog(spec.progressTitle, { progress: 0 }, async (update, signal) => {
     anchor.name = spec.trackName;
     if (anchor.devices.length === 0) {
-      await buildAmbientChain(anchor, cfg.instrument, cfg.addFx);
+      await buildAmbientChain(anchor, spec.instrument ?? cfg.instrument, cfg.addFx);
     }
     if (signal.aborted) return;
     await update("Writing clip…", 50);
@@ -447,8 +453,8 @@ async function runAleatoric(
 }
 
 /**
- * Rhythm: a looping percussive pulse from two Euclidean voices (low pulse + high
- * tick), tonal so it sits in key on a synth.
+ * Rhythm: a looping drum pattern on the GM drum map, on a Drum Rack. The rack is
+ * inserted empty — drop an 808 (or any) kit onto the track to hear it.
  */
 async function runRhythm(
   context: ExtensionContext<"1.0.0">,
@@ -457,25 +463,24 @@ async function runRhythm(
 ) {
   const r = cfg.rhythm;
   const notes = generateRhythm({
-    root: cfg.root,
     bars: r.bars,
-    lowHits: r.lowHits,
-    highHits: r.highHits,
+    style: r.style,
     vary: r.vary,
     seed: Math.floor(Math.random() * 1e9),
   });
   console.log(
-    `Ambient/Rhythm: ${notes.length} hit(s) over ${r.bars} bar(s), ` +
-      `euclid ${r.lowHits}/${r.highHits} per bar, key=${NOTE_NAMES[cfg.root]}.`,
+    `Ambient/Rhythm: ${notes.length} hit(s) over ${r.bars} bar(s), style=${r.style}. ` +
+      `Drop an 808/drum kit onto "Ambient Rhythm" to hear it.`,
   );
   await writeSingleLoop(context, anchor, cfg, {
     progressTitle: "Generating ambient rhythm…",
     trackName: "Ambient Rhythm",
-    clipName: `Rhythm · ${r.bars} bars`,
+    clipName: `Rhythm · ${r.style}`,
     sceneName: "Ambient · Rhythm",
     bars: r.bars,
     color: 0xffa94d,
     notes: notes as NoteDescription[],
+    instrument: DRUM_RACK,
   });
 }
 
@@ -571,16 +576,12 @@ async function buildPlayTrack(
 }
 
 /**
- * Perform: assemble a Push-ready rig in one pass — a Drift phasing bed (one
- * track per layer), a Bloom chord progression (one track), and an armed play
- * instrument to improvise on. Everything shares the current key and fits Push's
- * 8-column grid.
- *
- * Layout for hands-on play: the bed clips and Bloom step 1 sit together in the
- * first scene, so launching it starts the drone and the first chord at once.
- * The remaining Bloom steps run down that track's column; you advance the
- * harmony by tapping those pads (clip launch, not scene launch), which leaves
- * the bed untouched. The play track stays empty — it's just for playing.
+ * Perform: assemble a Push-ready rig as a set of self-contained **sections** —
+ * one scene per Bloom chord. Every layer (bed, rhythm, bass, shimmer) has a clip
+ * in every scene, so launching a scene plays a whole section, and moving between
+ * sections is a single scene launch. The bass follows the harmony: each scene's
+ * bass sits on that chord's root. The looping layers are duplicated across
+ * scenes, so they re-trigger when you change section. The play track stays empty.
  */
 async function runPerform(
   context: ExtensionContext<"1.0.0">,
@@ -617,24 +618,7 @@ async function runPerform(
       })
     : null;
   const rhythm = p.rhythmOn
-    ? generateRhythm({
-        root: cfg.root,
-        bars: PERFORM_RHYTHM_BARS,
-        lowHits: PERFORM_RHYTHM_LOW_HITS,
-        highHits: PERFORM_RHYTHM_HIGH_HITS,
-        vary: p.vary,
-        seed,
-      })
-    : null;
-  const bass = p.bassOn
-    ? generateBass({
-        root: cfg.root,
-        mode: cfg.mode,
-        bars: PERFORM_BASS_BARS,
-        style: p.bassStyle,
-        vary: p.vary,
-        seed,
-      })
+    ? generateRhythm({ bars: PERFORM_RHYTHM_BARS, style: p.rhythmStyle, vary: p.vary, seed })
     : null;
   const shimmer = p.shimmerOn
     ? generateAleatoric({
@@ -650,11 +634,20 @@ async function runPerform(
       })
     : null;
 
+  // Sections follow the Bloom chords; without Bloom it's a single section on the
+  // tonic. The bass gets one clip per section, on that chord's root.
   const sceneCount = Math.max(1, bloom ? bloom.steps : 1);
+  const stepRoots = bloom ? bloom.stepRoots : [cfg.root];
+  const bassSteps = p.bassOn
+    ? stepRoots.map((r) =>
+        generateBass({ root: r, mode: cfg.mode, bars: PERFORM_BASS_BARS, style: p.bassStyle, vary: p.vary, seed }),
+      )
+    : null;
+
   console.log(
-    `Ambient/Perform: start — key=${NOTE_NAMES[cfg.root]} ${cfg.mode}; ` +
+    `Ambient/Perform: start — key=${NOTE_NAMES[cfg.root]} ${cfg.mode}; ${sceneCount} section(s); ` +
       `bed=${bed.length} layer(s), bloom=${bloom ? bloom.steps + " step(s)" : "off"}, ` +
-      `rhythm=${rhythm ? "on" : "off"}, bass=${bass ? p.bassStyle : "off"}, ` +
+      `rhythm=${rhythm ? p.rhythmStyle : "off"}, bass=${bassSteps ? p.bassStyle + " (follows chords)" : "off"}, ` +
       `shimmer=${shimmer ? "on" : "off"}, play=${p.playOn ? p.playInstrument : "off"}; ` +
       `${performTrackCount(p.bedOn, p.bedLayers, p.bloomOn, p.rhythmOn, p.bassOn, p.shimmerOn, p.playOn)} track(s).`,
   );
@@ -665,9 +658,6 @@ async function runPerform(
     "Building ambient performance rig…",
     { progress: 0 },
     async (update, signal) => {
-      // Bed tracks (the anchor becomes the first), then the Bloom track, then
-      // the play track. All are gathered so we can reserve empty scene rows
-      // spanning every one of them.
       const bedTracks: MidiTrack<"1.0.0">[] = [];
       const allTracks: MidiTrack<"1.0.0">[] = [];
       let usedAnchor = false;
@@ -682,38 +672,57 @@ async function runPerform(
       await update("Creating tracks…", 10);
       for (let i = 0; i < bed.length; i++) {
         if (signal.aborted) return;
-        const t = await nextTrack();
-        bedTracks.push(t);
-        allTracks.push(t);
+        bedTracks.push(await nextTrack());
       }
       const bloomTrack = bloom ? await nextTrack() : null;
-      if (bloomTrack) allTracks.push(bloomTrack);
       const rhythmTrack = rhythm ? await nextTrack() : null;
-      if (rhythmTrack) allTracks.push(rhythmTrack);
-      const bassTrack = bass ? await nextTrack() : null;
-      if (bassTrack) allTracks.push(bassTrack);
+      const bassTrack = bassSteps ? await nextTrack() : null;
       const shimmerTrack = shimmer ? await nextTrack() : null;
-      if (shimmerTrack) allTracks.push(shimmerTrack);
       const playTrack = p.playOn ? await nextTrack() : null;
-      if (playTrack) allTracks.push(playTrack);
+      allTracks.push(...bedTracks);
+      for (const t of [bloomTrack, rhythmTrack, bassTrack, shimmerTrack, playTrack]) if (t) allTracks.push(t);
       if (allTracks.length === 0) return;
+
+      // Build each track's device chain once (before laying out clips). Rhythm
+      // gets a Drum Rack; everything else the shared instrument + FX.
+      await update("Building instruments…", 30);
+      for (let i = 0; i < bed.length; i++) {
+        if (signal.aborted) return;
+        bedTracks[i].name = `Ambient ${bed[i].role}`;
+        if (bedTracks[i].devices.length === 0) await buildAmbientChain(bedTracks[i], cfg.instrument, cfg.addFx);
+      }
+      if (bloomTrack) {
+        bloomTrack.name = "Ambient Bloom";
+        if (bloomTrack.devices.length === 0) await buildAmbientChain(bloomTrack, cfg.instrument, cfg.addFx);
+      }
+      if (rhythmTrack) {
+        rhythmTrack.name = "Ambient Rhythm";
+        if (rhythmTrack.devices.length === 0) await buildAmbientChain(rhythmTrack, DRUM_RACK, cfg.addFx);
+      }
+      if (bassTrack) {
+        bassTrack.name = "Ambient Bass";
+        if (bassTrack.devices.length === 0) await buildAmbientChain(bassTrack, cfg.instrument, cfg.addFx);
+      }
+      if (shimmerTrack) {
+        shimmerTrack.name = "Ambient Shimmer";
+        if (shimmerTrack.devices.length === 0) await buildAmbientChain(shimmerTrack, cfg.instrument, cfg.addFx);
+      }
+      if (playTrack) {
+        await buildPlayTrack(playTrack, { instrument: p.playInstrument, addFx: cfg.addFx, arm: true, arp: false });
+      }
 
       const base = await reserveScenes(song, allTracks, sceneCount);
 
-      // Single loops that all live in the first reserved scene, launching
-      // together with the bed and first chord.
-      const writeBaseLoop = async (
+      const writeClip = async (
         track: MidiTrack<"1.0.0">,
-        trackName: string,
-        clipName: string,
+        sceneOffset: number,
         bars: number,
+        clipName: string,
         color: number,
         notes: NoteDescription[],
       ) => {
-        track.name = trackName;
-        if (track.devices.length === 0) await buildAmbientChain(track, cfg.instrument, cfg.addFx);
-        const slot = track.clipSlots[base];
-        if (!slot) throw new Error(`no ${trackName} slot at scene ${base}`);
+        const slot = track.clipSlots[base + sceneOffset];
+        if (!slot) throw new Error(`no slot at scene ${base + sceneOffset} for "${clipName}"`);
         const clip = await slot.createMidiClip(bars * 4);
         clip.notes = notes;
         clip.name = clipName;
@@ -722,82 +731,48 @@ async function runPerform(
         notesWritten += notes.length;
       };
 
-      // Bed: each layer's sustained loop, all in the first reserved scene.
-      await update("Writing bed…", 35);
-      for (let i = 0; i < bed.length; i++) {
-        if (signal.aborted) return;
-        const layer = bed[i];
-        const track = bedTracks[i];
-        track.name = `Ambient ${layer.role}`;
-        if (track.devices.length === 0) await buildAmbientChain(track, cfg.instrument, cfg.addFx);
-        const slot = track.clipSlots[base];
-        if (!slot) throw new Error(`no bed slot at scene ${base}`);
-        const clip = await slot.createMidiClip(layer.bars * 4);
-        clip.notes = layer.notes as NoteDescription[];
-        clip.name = `${layer.role} · ${layer.bars} bars`;
-        clip.looping = true;
-        setColor(clip, layer.color);
-        notesWritten += layer.notes.length;
-      }
-
-      // Bloom: the progression down the Bloom track's column.
-      if (bloom && bloomTrack) {
-        await update("Writing progression…", 60);
-        bloomTrack.name = "Ambient Bloom";
-        if (bloomTrack.devices.length === 0) await buildAmbientChain(bloomTrack, cfg.instrument, cfg.addFx);
-        for (let s = 0; s < bloom.steps; s++) {
-          if (signal.aborted) return;
-          const notes = bloom.layers.flatMap((l) => l.clips[s]);
-          const slot = bloomTrack.clipSlots[base + s];
-          if (!slot) throw new Error(`no bloom slot at scene ${base + s}`);
-          const label = `Bloom ${s + 1} · ${bloom.stepLabels[s]}`;
-          const clip = await slot.createMidiClip(bloom.barsPerStep * 4);
-          clip.notes = notes as NoteDescription[];
-          clip.name = label;
-          clip.looping = true;
-          setColor(clip, bloom.layers[s % bloom.layers.length].color);
-          const scene = song.scenes[base + s];
-          if (scene && !scene.name) scene.name = s === 0 ? "Ambient · start" : label;
-          notesWritten += notes.length;
+      // Lay out each section: bed/rhythm/shimmer duplicated, Bloom + bass per chord.
+      for (let s = 0; s < sceneCount; s++) {
+        if (signal.aborted) {
+          console.log("Ambient/Perform: cancelled by user.");
+          return;
         }
-      } else {
-        const scene = song.scenes[base];
-        if (scene && !scene.name) scene.name = "Ambient · start";
+        await update(`Writing section ${s + 1} of ${sceneCount}…`, 40 + Math.round(((s + 1) / sceneCount) * 55));
+
+        for (let i = 0; i < bed.length; i++) {
+          await writeClip(bedTracks[i], s, bed[i].bars, `${bed[i].role} · ${bed[i].bars} bars`, bed[i].color, bed[i].notes as NoteDescription[]);
+        }
+        if (bloom && bloomTrack) {
+          await writeClip(bloomTrack, s, bloom.barsPerStep, `${bloom.stepLabels[s]} chord`, bloom.layers[s % bloom.layers.length].color, bloom.layers.flatMap((l) => l.clips[s]) as NoteDescription[]);
+        }
+        if (rhythm && rhythmTrack) {
+          await writeClip(rhythmTrack, s, PERFORM_RHYTHM_BARS, `Rhythm · ${p.rhythmStyle}`, 0xffa94d, rhythm as NoteDescription[]);
+        }
+        if (bassSteps && bassTrack) {
+          await writeClip(bassTrack, s, PERFORM_BASS_BARS, `Bass ${NOTE_NAMES[stepRoots[s]]} · ${p.bassStyle}`, 0x5f3dc4, bassSteps[s] as NoteDescription[]);
+        }
+        if (shimmer && shimmerTrack) {
+          await writeClip(shimmerTrack, s, PERFORM_SHIMMER_BARS, `Shimmer · ${PERFORM_SHIMMER_BARS} bars`, 0x66d9e8, shimmer as NoteDescription[]);
+        }
+
+        const scene = song.scenes[base + s];
+        const label = bloom ? bloom.stepLabels[s] : NOTE_NAMES[cfg.root];
+        if (scene && !scene.name) scene.name = `Section ${s + 1} · ${label}`;
       }
 
-      // Rhythm, bass and shimmer: continuous loops under the moving harmony.
-      if (rhythm && rhythmTrack) {
-        await update("Writing rhythm…", 70);
-        await writeBaseLoop(rhythmTrack, "Ambient Rhythm", `Rhythm · ${PERFORM_RHYTHM_BARS} bars`, PERFORM_RHYTHM_BARS, 0xffa94d, rhythm as NoteDescription[]);
+      if (p.softenMix) {
+        await update("Softening the mix…", 97);
+        await softenMaster(song);
       }
-      if (bass && bassTrack) {
-        await update("Writing bass…", 76);
-        await writeBaseLoop(bassTrack, "Ambient Bass", `Bass · ${p.bassStyle}`, PERFORM_BASS_BARS, 0x5f3dc4, bass as NoteDescription[]);
-      }
-      if (shimmer && shimmerTrack) {
-        await update("Writing shimmer…", 82);
-        await writeBaseLoop(shimmerTrack, "Ambient Shimmer", `Shimmer · ${PERFORM_SHIMMER_BARS} bars`, PERFORM_SHIMMER_BARS, 0x66d9e8, shimmer as NoteDescription[]);
-      }
-
-      // Play track: instrument + FX, armed and empty — ready for Push Note mode.
-      if (playTrack) {
-        await update("Arming play track…", 85);
-        await buildPlayTrack(playTrack, {
-          instrument: p.playInstrument,
-          addFx: cfg.addFx,
-          arm: true,
-          arp: false,
-        });
-      }
-
       await update("Done", 100);
     },
   );
 
   console.log(
-    `Ambient/Perform: done — ${notesWritten} note(s). Launch the first scene to start the bed` +
-      `${bloom ? " + first chord, then tap down the Bloom column to move the harmony" : ""}. ` +
-      `Select "Ambient Play" on Push and hit Note mode to play over it in ${NOTE_NAMES[cfg.root]} ${cfg.mode}.`,
+    `Ambient/Perform: done — ${sceneCount} section(s), ${notesWritten} note(s). ` +
+      `Launch a scene to play that section; launch another to move on (bass follows the chord). ` +
+      `${rhythm ? 'Drop an 808/drum kit onto "Ambient Rhythm". ' : ""}` +
+      `Play over it on "Ambient Play" in ${NOTE_NAMES[cfg.root]} ${cfg.mode}.`,
   );
 }
 
@@ -880,7 +855,7 @@ async function buildAmbientChain(
 }
 
 async function insertDeviceSafely(
-  track: MidiTrack<"1.0.0">,
+  track: Track<"1.0.0">,
   deviceName: string,
 ): Promise<Device<"1.0.0"> | null> {
   try {
@@ -888,6 +863,26 @@ async function insertDeviceSafely(
   } catch (err) {
     console.warn(`Ambient: couldn't add "${deviceName}".`, err);
     return null;
+  }
+}
+
+/**
+ * Tame the harsh top end of the whole mix: drop an EQ Eight on the main track
+ * with a gentle high-shelf cut, then a low-pass Auto Filter as a backstop. Both
+ * are best-effort and only added once (so re-running Perform doesn't stack them).
+ */
+async function softenMaster(song: Song<"1.0.0">) {
+  const main = song.mainTrack;
+  const has = (needle: string) => main.devices.some((d) => d.name.toLowerCase().includes(needle));
+
+  if (!has("eq")) {
+    const eq = await insertDeviceSafely(main, "EQ Eight");
+    // Pull the highest band down to shave 2–5kHz harshness, if we can find it.
+    if (eq) await tuneParam(eq, "8 Gain", 0.42);
+  }
+  if (!has("filter")) {
+    const filter = await insertDeviceSafely(main, "Auto Filter");
+    if (filter) await tuneParam(filter, "Frequency", 0.78); // ease the very top off
   }
 }
 

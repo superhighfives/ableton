@@ -381,6 +381,8 @@ export interface BloomResult {
   barsPerStep: number;
   /** Chord-root note name per step, for scene naming. */
   stepLabels: string[];
+  /** Chord-root pitch class (0–11) per step, so a bass can follow the harmony. */
+  stepRoots: number[];
   layers: BloomLayer[];
 }
 
@@ -397,7 +399,8 @@ export function generateBloom(opts: BloomOptions): BloomResult {
   const barBeats = opts.barsPerStep * BEATS_PER_BAR;
   const rng = mulberry32(opts.seed ^ 0x9e3779b9);
 
-  const stepLabels = offsets.map((o) => NOTE_NAMES[scaleDegreePc(opts.root, opts.mode, o)]);
+  const stepRoots = offsets.map((o) => scaleDegreePc(opts.root, opts.mode, o));
+  const stepLabels = stepRoots.map((pc) => NOTE_NAMES[pc]);
 
   const layers: BloomLayer[] = [];
   for (let i = 0; i < nLayers; i++) {
@@ -427,7 +430,7 @@ export function generateBloom(opts: BloomOptions): BloomResult {
     layers.push({ role: roleFor(center), color: LAYER_COLORS[i % LAYER_COLORS.length], clips });
   }
 
-  return { steps: nSteps, barsPerStep: opts.barsPerStep, stepLabels, layers };
+  return { steps: nSteps, barsPerStep: opts.barsPerStep, stepLabels, stepRoots, layers };
 }
 
 // --- Perform layout ----------------------------------------------------------
@@ -576,53 +579,102 @@ export function euclid(pulses: number, steps: number): boolean[] {
   return out;
 }
 
+/**
+ * General-MIDI drum-map pitches, so patterns play a standard Drum Rack / 808
+ * kit correctly once the user loads one onto the track.
+ */
+export const DRUM = {
+  kick: 36,
+  rim: 37,
+  snare: 38,
+  clap: 39,
+  hatClosed: 42,
+  hatOpen: 46,
+} as const;
+
+export type RhythmStyle = "four" | "boombap" | "trap" | "half" | "ambient" | "euclid";
+
+/** One bar (16 steps) of hits per drum voice, as step indices 0–15. */
+interface DrumPattern {
+  kick: number[];
+  snare: number[];
+  clap: number[];
+  hatClosed: number[];
+  hatOpen: number[];
+}
+
+const DRUM_PATTERNS: Record<Exclude<RhythmStyle, "euclid">, DrumPattern> = {
+  // Four-on-the-floor: kick every beat, clap on 2 & 4, offbeat hats.
+  four: { kick: [0, 4, 8, 12], snare: [], clap: [4, 12], hatClosed: [2, 6, 10, 14], hatOpen: [] },
+  // Boom-bap: kick on 1 and the "and" of 3, snare on 2 & 4, eighth hats.
+  boombap: { kick: [0, 10], snare: [4, 12], clap: [], hatClosed: [0, 2, 4, 6, 8, 10, 12, 14], hatOpen: [] },
+  // Trap/808: syncopated booming kick, snare on 3, rapid 16th hats.
+  trap: { kick: [0, 6, 10], snare: [8], clap: [8], hatClosed: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], hatOpen: [14] },
+  // Half-time: snare on 3 only, sparse kick — spacious.
+  half: { kick: [0], snare: [8], clap: [], hatClosed: [0, 4, 8, 12], hatOpen: [] },
+  // Ambient: barely-there kick and a couple of soft ticks.
+  ambient: { kick: [0], snare: [], clap: [], hatClosed: [6, 14], hatOpen: [] },
+};
+
 export interface RhythmOptions {
-  root: number; // 0–11
   /** Loop length in bars. */
   bars: number;
-  /** Euclidean hit count per bar for the low pulse voice. */
-  lowHits: number;
-  /** Euclidean hit count per bar for the high tick voice. */
-  highHits: number;
+  style: RhythmStyle;
   vary: boolean;
   seed: number;
 }
 
+const stepsOf = (pattern: boolean[]): number[] =>
+  pattern.map((h, i) => (h ? i : -1)).filter((i) => i >= 0);
+
 /**
- * A looping percussive pulse from two Euclidean voices — a low pulse and a high
- * tick, at pitches derived from the key so it sits in tune on a synth (swap in a
- * Drum Rack and remap for actual drums). With `vary`, hits fire probabilistically
- * so the groove keeps shifting.
+ * A looping drum pattern on the General-MIDI drum map. Named styles are classic
+ * kits (four-on-floor, boom-bap, trap/808…); "euclid" spreads kick and hats
+ * evenly for a generative feel. With `vary`, hits fire probabilistically so the
+ * groove keeps shifting. Meant for a Drum Rack — load an 808 kit onto the track.
  */
 export function generateRhythm(opts: RhythmOptions): DriftNote[] {
   const rng = mulberry32(opts.seed);
   const stepBeats = BEATS_PER_BAR / RHYTHM_STEPS_PER_BAR;
-  const lowPat = euclid(opts.lowHits, RHYTHM_STEPS_PER_BAR);
-  const highPat = euclid(opts.highHits, RHYTHM_STEPS_PER_BAR);
-  const lowPitch = 48 + opts.root; // low pulse
-  const highPitch = 60 + opts.root; // high tick, an octave up
 
-  const hit = (pitch: number, step: number, bar: number, velocity: number, prob: number): DriftNote => {
-    const note: DriftNote = {
-      pitch,
-      startTime: (bar * RHYTHM_STEPS_PER_BAR + step) * stepBeats,
-      duration: stepBeats * 0.9, // staccato
-      velocity,
-    };
-    if (opts.vary) {
-      note.probability = clamp(prob - rng() * 0.1, 0.3, 1);
-      note.velocityDeviation = 12;
-    }
-    return note;
-  };
+  const pattern: DrumPattern =
+    opts.style === "euclid"
+      ? {
+          kick: stepsOf(euclid(4, RHYTHM_STEPS_PER_BAR)),
+          snare: [8],
+          clap: [],
+          hatClosed: stepsOf(euclid(9, RHYTHM_STEPS_PER_BAR)),
+          hatOpen: [],
+        }
+      : DRUM_PATTERNS[opts.style];
+
+  const voices: { pitch: number; steps: number[]; velocity: number; prob: number }[] = [
+    { pitch: DRUM.kick, steps: pattern.kick, velocity: 100, prob: 0.97 },
+    { pitch: DRUM.snare, steps: pattern.snare, velocity: 92, prob: 0.95 },
+    { pitch: DRUM.clap, steps: pattern.clap, velocity: 88, prob: 0.95 },
+    { pitch: DRUM.hatClosed, steps: pattern.hatClosed, velocity: 58, prob: 0.78 },
+    { pitch: DRUM.hatOpen, steps: pattern.hatOpen, velocity: 66, prob: 0.7 },
+  ];
 
   const notes: DriftNote[] = [];
   for (let bar = 0; bar < Math.max(1, opts.bars); bar++) {
-    for (let s = 0; s < RHYTHM_STEPS_PER_BAR; s++) {
-      if (lowPat[s]) notes.push(hit(lowPitch, s, bar, 82, 0.92));
-      if (highPat[s]) notes.push(hit(highPitch, s, bar, 60, 0.72));
+    for (const v of voices) {
+      for (const s of v.steps) {
+        const note: DriftNote = {
+          pitch: v.pitch,
+          startTime: (bar * RHYTHM_STEPS_PER_BAR + s) * stepBeats,
+          duration: stepBeats * 0.9, // staccato
+          velocity: v.velocity,
+        };
+        if (opts.vary) {
+          note.probability = clamp(v.prob - rng() * 0.12, 0.3, 1);
+          note.velocityDeviation = 14;
+        }
+        notes.push(note);
+      }
     }
   }
+  notes.sort((a, b) => a.startTime - b.startTime);
   return notes;
 }
 

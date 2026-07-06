@@ -7,6 +7,7 @@ import {
   gcd,
   generateBloom,
   generateDrift,
+  DRUM,
   euclid,
   generateAleatoric,
   generateBass,
@@ -136,6 +137,8 @@ expect("same seed reproduces the same bloom", generateBloom(bloomOpts), generate
 expect("first step is the tonic", bloom.stepLabels[0], "G");
 // Rise motion in C major labels the ascending diatonic roots.
 expect("rise labels ascend the C major scale", generateBloom({ ...bloomOpts, root: 0, mode: "ionian", motion: "rise", steps: 5 }).stepLabels, ["C", "D", "E", "F", "G"]);
+// stepRoots expose the pitch classes so bass can follow: C D E F G = 0 2 4 5 7.
+expect("stepRoots give the chord-root pitch classes", generateBloom({ ...bloomOpts, root: 0, mode: "ionian", motion: "rise", steps: 5 }).stepRoots, [0, 2, 4, 5, 7]);
 
 // --- Aleatoric: scatter, ranges, weighting ---
 const aleaOpts: AleatoricOptions = {
@@ -176,13 +179,23 @@ assert("euclid places exactly `pulses` hits", euclid(5, 16).filter(Boolean).leng
 assert("euclid(0,16) is silent", euclid(0, 16).every((h) => !h));
 assert("euclid clamps pulses to steps", euclid(20, 8).filter(Boolean).length === 8);
 
-// --- Rhythm generator ---
-const rhythmOpts: RhythmOptions = { root: 2, bars: 2, lowHits: 4, highHits: 7, vary: true, seed: 4 };
+// --- Rhythm generator (drum map) ---
+const rhythmOpts: RhythmOptions = { bars: 2, style: "four", vary: true, seed: 4 };
 const rhythm = generateRhythm(rhythmOpts);
-expect("rhythm hit count = (low + high) × bars", rhythm.length, (4 + 7) * 2);
 assert("rhythm notes are staccato", rhythm.every((n) => n.duration <= 0.25));
 assert("rhythm notes stay within the loop", rhythm.every((n) => n.startTime + n.duration <= 2 * BEATS_PER_BAR + 1e-9));
-assert("rhythm uses two pitches (low pulse + high tick)", new Set(rhythm.map((n) => n.pitch)).size === 2);
+const DRUM_PITCHES: number[] = [DRUM.kick, DRUM.snare, DRUM.clap, DRUM.hatClosed, DRUM.hatOpen];
+assert("rhythm uses GM drum-map pitches only", rhythm.every((n) => DRUM_PITCHES.includes(n.pitch)));
+// Four-on-floor: 4 kicks per bar.
+assert("four-on-floor has a kick on every beat", generateRhythm({ ...rhythmOpts, vary: false }).filter((n) => n.pitch === DRUM.kick && n.startTime < BEATS_PER_BAR).length === 4);
+{
+  // Boom-bap snares land on beats 2 and 4 (startTimes 1.0 and 3.0 in a 4/4 bar).
+  const bb = generateRhythm({ bars: 1, style: "boombap", vary: false, seed: 1 }).filter((n) => n.pitch === DRUM.snare).map((n) => n.startTime).sort((a, b) => a - b);
+  expect("boom-bap puts snares on beats 2 & 4", bb, [1, 3]);
+}
+assert("ambient style is sparse", generateRhythm({ bars: 1, style: "ambient", vary: false, seed: 1 }).length <= 4);
+assert("euclid style spreads kicks evenly", generateRhythm({ bars: 1, style: "euclid", vary: false, seed: 1 }).filter((n) => n.pitch === DRUM.kick).length === 4);
+assert("rhythm notes are sorted by start time", rhythm.every((n, i) => i === 0 || n.startTime >= rhythm[i - 1].startTime));
 expect("same seed reproduces the same rhythm", generateRhythm(rhythmOpts), generateRhythm(rhythmOpts));
 assert("rhythm vary=false has no probability", generateRhythm({ ...rhythmOpts, vary: false }).every((n) => n.probability === undefined));
 

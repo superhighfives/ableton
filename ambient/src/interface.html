@@ -298,23 +298,18 @@
   <!-- Rhythm panel -->
   <div class="panel" id="panel-rhythm">
     <div class="hint">
-      A looping pulse from two Euclidean voices — a low pulse and a high tick,
-      spread evenly across the bar. Tonal, so it sits in key on a synth; swap in
-      a Drum Rack and remap for drums.
+      A looping drum pattern on the General-MIDI drum map. This drops an empty
+      <b>Drum Rack</b> on the track — load an 808 (or any) kit onto it to hear it.
     </div>
     <div class="section">
       <div class="heading">Pattern</div>
       <div class="row">
+        <span class="sublabel">Kit style</span>
+        <select id="r-style" class="alx-select grow" aria-label="Drum style"></select>
+      </div>
+      <div class="row">
         <span class="sublabel">Length</span>
         <select id="r-bars" class="alx-select grow" aria-label="Loop length"></select>
-      </div>
-      <div class="row">
-        <span class="sublabel">Low hits</span>
-        <select id="r-low" class="alx-select grow" aria-label="Low pulse hits per bar"></select>
-      </div>
-      <div class="row">
-        <span class="sublabel">High hits</span>
-        <select id="r-high" class="alx-select grow" aria-label="High tick hits per bar"></select>
       </div>
     </div>
     <label class="check"><input type="checkbox" id="r-vary" checked /><span class="label">Evolve (hits fire probabilistically)</span></label>
@@ -412,7 +407,11 @@
       </div>
     </div>
     <div class="section">
-      <label class="check"><input type="checkbox" id="p-rhythm" /><span class="label">Rhythm (Euclidean pulse)</span></label>
+      <label class="check"><input type="checkbox" id="p-rhythm" /><span class="label">Rhythm (drum kit — load an 808)</span></label>
+      <div class="row">
+        <span class="sublabel">Kit style</span>
+        <select id="p-rhythm-style" class="alx-select grow" aria-label="Drum style"></select>
+      </div>
     </div>
     <div class="section">
       <label class="check"><input type="checkbox" id="p-shimmer" checked /><span class="label">Aleatoric shimmer (sparkle layer)</span></label>
@@ -430,6 +429,7 @@
       <label class="check"><input type="checkbox" id="p-play" checked /><span class="label">Play instrument (armed for Push)</span></label>
       <select id="p-play-instrument" class="alx-select" aria-label="Play instrument"></select>
     </div>
+    <label class="check"><input type="checkbox" id="p-soften" checked /><span class="label">Soften mix (gentle high-cut on the master)</span></label>
     <label class="check"><input type="checkbox" id="p-vary" checked /><span class="label">Evolve (per-note probability + velocity drift)</span></label>
   </div>
 
@@ -509,8 +509,27 @@
     fillRange(document.getElementById("p-bloom-steps"), 2, 8, 4);
     fillRange(document.getElementById("p-shimmer-density"), 1, 6, 2);
     fillRange(document.getElementById("a-density"), 1, 6, 2);
-    fillRange(document.getElementById("r-low"), 0, 8, 4);
-    fillRange(document.getElementById("r-high"), 0, 16, 7);
+
+    // --- Drum kit style dropdowns (standalone Rhythm + Perform) ---
+    const DRUM_STYLES = [
+      { id: "four", label: "Four-on-floor" },
+      { id: "boombap", label: "Boom-bap" },
+      { id: "trap", label: "808 / Trap" },
+      { id: "half", label: "Half-time" },
+      { id: "ambient", label: "Ambient (sparse)" },
+      { id: "euclid", label: "Euclidean" },
+    ];
+    function fillDrumStyles(id, def) {
+      DRUM_STYLES.forEach((s) => {
+        const opt = document.createElement("option");
+        opt.value = s.id;
+        opt.textContent = s.label;
+        if (s.id === def) opt.selected = true;
+        document.getElementById(id).appendChild(opt);
+      });
+    }
+    fillDrumStyles("r-style", "boombap");
+    fillDrumStyles("p-rhythm-style", "boombap");
     [
       { bars: 2, label: "2 bars" },
       { bars: 4, label: "4 bars" },
@@ -567,7 +586,7 @@
       perform: document.getElementById("panel-perform"),
     };
     // The Sound section means something a little different per tab.
-    const SOUND_SCOPE = { perform: "· bed & chords", play: "· your instrument" };
+    const SOUND_SCOPE = { perform: "· bed & chords", play: "· your instrument", rhythm: "· drums use a Drum Rack" };
     function setTab(next) {
       if (!panels[next]) return; // ignore disabled tabs
       tab = next;
@@ -585,6 +604,8 @@
       } else {
         scope.style.display = "none";
       }
+      // Rhythm forces a Drum Rack, so the instrument choice doesn't apply there.
+      document.getElementById("instrument").disabled = tab === "rhythm";
     }
     document.querySelectorAll(".tab").forEach((b) =>
       b.addEventListener("click", () => setTab(b.dataset.tab)),
@@ -658,8 +679,7 @@
         },
         rhythm: {
           bars: Number(document.getElementById("r-bars").value),
-          lowHits: Number(document.getElementById("r-low").value),
-          highHits: Number(document.getElementById("r-high").value),
+          style: document.getElementById("r-style").value,
           vary: document.getElementById("r-vary").checked,
         },
         bass: {
@@ -681,6 +701,7 @@
           bloomMotion: getPMotion(),
           bloomChord: getPChord(),
           rhythmOn: document.getElementById("p-rhythm").checked,
+          rhythmStyle: document.getElementById("p-rhythm-style").value,
           bassOn: document.getElementById("p-bass").checked,
           bassStyle: getPerformBass(),
           shimmerOn: document.getElementById("p-shimmer").checked,
@@ -688,6 +709,7 @@
           shimmerSpread: getShimmerSpread(),
           playOn: document.getElementById("p-play").checked,
           playInstrument: playSel.value,
+          softenMix: document.getElementById("p-soften").checked,
           vary: document.getElementById("p-vary").checked,
         },
       });

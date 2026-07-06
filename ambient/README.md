@@ -15,8 +15,8 @@ locked up: tweak the notes, swap the instrument, remap the harmony.
 | **Drift** | N looping clips of **coprime bar lengths** (3, 5, 7, 11…), one per track, all in one scene. | The loops realign only after the product of their lengths, so a handful of short clips never repeat their combined state for hours — Eno's _Music for Airports_ trick. |
 | **Bloom** | An **evolving chord progression**: one clip per scene on a single track, launched in turn. | Each scene holds one diatonic chord a scale-step along the chosen motion; the register layers become the wide vertical voicing of that one clip. |
 | **Aleatoric** | One long clip **scattered by probability** — off-grid, humanized, drawn from the key. | A self-contained generative shimmer, weighted toward chord tones and re-shuffled every loop. Density, register, note length and weighting are all adjustable. |
-| **Rhythm** | A looping **Euclidean pulse** — a low pulse and a high tick spread evenly across the bar. | Tonal (in key on a synth; swap a Drum Rack in for drums). Set hits per bar for each voice; Evolve fires them probabilistically. |
-| **Bass** | A **low-register loop on the tonic** — Sustain (held sub), Pulse (root each beat), or Walk (root → fifth → octave). | A foundation, or a tonic pedal under Perform's moving harmony. |
+| **Rhythm** | A looping **drum pattern** on the GM drum map — Four-on-floor, Boom-bap, 808/Trap, Half-time, Ambient, or Euclidean. | Drops an empty **Drum Rack** on the track; load an 808 (or any) kit onto it. Evolve fires hits probabilistically. |
+| **Bass** | A **low-register loop on the tonic** — Sustain (held sub), Pulse (root each beat), or Walk (root → fifth → octave). | A foundation on its own; in Perform it **follows the Bloom chord roots**. |
 | **Play** | Turns the track into a **ready-to-play instrument** — instrument + FX, an optional Arpeggiator, armed for Push's Note mode. No clips. | The voice you play live over the loops, in tune with the current key. |
 | **Perform** | A **Push-ready rig** composing all of the above — bed + progression + rhythm + bass + shimmer + Play instrument, in one key. | Assembles the loops-plus-instrument setup for live playing (see below). |
 
@@ -29,19 +29,22 @@ repeating exactly.
 
 ## Playing live (Perform + Push)
 
-The **Perform** tab builds a whole rig in the current key, laid out for the
-Ableton Push (or any Session workflow):
+The **Perform** tab builds a whole rig in the current key as a set of
+self-contained **sections** — one scene per Bloom chord. Every layer has a clip
+in every scene:
 
-- a **Drift bed** (one track per phasing layer) with its loops in the first scene,
-- a **Bloom progression** down a single track's column,
-- optional **Bass**, **Rhythm** and **Aleatoric shimmer** loops alongside the bed
-  in the first scene (bass on, rhythm off by default),
-- an **armed play instrument** track — empty, ready for Push's Note mode (the
-  same setup the **Play** tab builds on its own).
+- a **Drift bed** (one track per phasing layer),
+- the **Bloom chord** for that section,
+- optional **Bass** (which **follows the chord root** of each section),
+- optional **Rhythm** (a Drum Rack — load an 808 kit) and **Aleatoric shimmer**,
+- an **armed play instrument** track — empty, ready for Push's Note mode.
 
-Every layer is optional, the bed caps at 3 layers, and the whole rig stays within
-Push's 8-column grid. Bass, rhythm and shimmer keep looping while you tap the
-Bloom column to move the harmony.
+Because every scene is a full section, you **launch a scene to play that section
+and launch another to move on** — the bass and chord change together, no
+multi-pad tapping. The looping layers (bed/rhythm/shimmer) are duplicated across
+scenes, so they re-trigger at each change. Bass defaults on, rhythm off; the bed
+caps at 3 layers so the whole rig stays within Push's 8-column grid. An optional
+**Soften mix** drops a gentle high-cut on the master to tame harsh frequencies.
 
 The extension doesn't talk to Push directly — it doesn't need to. Push is a live
 view of the Live Set, so everything generated (clips, scenes, colours) shows up
