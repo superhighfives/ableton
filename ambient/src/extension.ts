@@ -266,7 +266,6 @@ async function runDrift(
         clip.notes = layer.notes as NoteDescription[];
         clip.name = `${layer.role} · ${layer.bars} bars`;
         clip.looping = true;
-        setColor(clip, layer.color);
 
         notesWritten += layer.notes.length;
         console.log(
@@ -353,8 +352,6 @@ async function runBloom(
         clip.notes = notes as NoteDescription[];
         clip.name = label;
         clip.looping = true;
-        // Colour scenes distinctly so the progression reads at a glance.
-        setColor(clip, result.layers[s % result.layers.length].color);
 
         const scene = song.scenes[base + s];
         if (scene && !scene.name) scene.name = label;
@@ -386,7 +383,6 @@ async function writeSingleLoop(
     clipName: string;
     sceneName: string;
     bars: number;
-    color: number;
     notes: NoteDescription[];
     /** Override the instrument built onto an empty track (e.g. a Drum Rack). */
     instrument?: string;
@@ -408,7 +404,6 @@ async function writeSingleLoop(
     clip.notes = spec.notes;
     clip.name = spec.clipName;
     clip.looping = true;
-    setColor(clip, spec.color);
     const scene = song.scenes[base];
     if (scene && !scene.name) scene.name = spec.sceneName;
     await update("Done", 100);
@@ -447,7 +442,6 @@ async function runAleatoric(
     clipName: `Shimmer · ${a.bars} bars`,
     sceneName: "Ambient · Shimmer",
     bars: a.bars,
-    color: 0x66d9e8,
     notes: notes as NoteDescription[],
   });
 }
@@ -478,7 +472,6 @@ async function runRhythm(
     clipName: `Rhythm · ${r.style}`,
     sceneName: "Ambient · Rhythm",
     bars: r.bars,
-    color: 0xffa94d,
     notes: notes as NoteDescription[],
     instrument: DRUM_RACK,
   });
@@ -512,7 +505,6 @@ async function runBass(
     clipName: `Bass · ${b.style}`,
     sceneName: "Ambient · Bass",
     bars: b.bars,
-    color: 0x5f3dc4,
     notes: notes as NoteDescription[],
   });
 }
@@ -576,12 +568,15 @@ async function buildPlayTrack(
 }
 
 /**
- * Perform: assemble a Push-ready rig as a set of self-contained **sections** —
- * one scene per Bloom chord. Every layer (bed, rhythm, bass, shimmer) has a clip
- * in every scene, so launching a scene plays a whole section, and moving between
- * sections is a single scene launch. The bass follows the harmony: each scene's
- * bass sits on that chord's root. The looping layers are duplicated across
- * scenes, so they re-trigger when you change section. The play track stays empty.
+ * Perform: assemble a Push-ready rig. The looping layers (bed, rhythm, shimmer)
+ * live as a single clip each in the first scene, so they play continuously. Only
+ * what changes runs down a column: the Bloom chord and its bass, one clip per
+ * scene, with the bass following the chord's root. Launch the first scene to
+ * start everything, then tap the Bloom + Bass clips down their columns to move
+ * the harmony (the loops keep running). The play track stays empty.
+ *
+ * No clip colours are set — each clip inherits its track's colour, so every clip
+ * matches its column.
  */
 async function runPerform(
   context: ExtensionContext<"1.0.0">,
@@ -713,12 +708,13 @@ async function runPerform(
 
       const base = await reserveScenes(song, allTracks, sceneCount);
 
+      // No clip colour is set anywhere: a new clip defaults to its track's
+      // colour, so every clip matches its column.
       const writeClip = async (
         track: MidiTrack<"1.0.0">,
         sceneOffset: number,
         bars: number,
         clipName: string,
-        color: number,
         notes: NoteDescription[],
       ) => {
         const slot = track.clipSlots[base + sceneOffset];
@@ -727,37 +723,36 @@ async function runPerform(
         clip.notes = notes;
         clip.name = clipName;
         clip.looping = true;
-        setColor(clip, color);
         notesWritten += notes.length;
       };
 
-      // Lay out each section: bed/rhythm/shimmer duplicated, Bloom + bass per chord.
+      // Continuous loops: one clip each in the first scene — launch once and
+      // they keep playing while you change chord.
+      await update("Writing bed & loops…", 55);
+      for (let i = 0; i < bed.length; i++) {
+        if (signal.aborted) return;
+        await writeClip(bedTracks[i], 0, bed[i].bars, `${bed[i].role} · ${bed[i].bars} bars`, bed[i].notes as NoteDescription[]);
+      }
+      if (rhythm && rhythmTrack) await writeClip(rhythmTrack, 0, PERFORM_RHYTHM_BARS, `Rhythm · ${p.rhythmStyle}`, rhythm as NoteDescription[]);
+      if (shimmer && shimmerTrack) await writeClip(shimmerTrack, 0, PERFORM_SHIMMER_BARS, `Shimmer · ${PERFORM_SHIMMER_BARS} bars`, shimmer as NoteDescription[]);
+
+      // Columns: the Bloom chord and its bass root per section — tap down these
+      // to move the harmony; the bass follows the chord.
       for (let s = 0; s < sceneCount; s++) {
         if (signal.aborted) {
           console.log("Ambient/Perform: cancelled by user.");
           return;
         }
-        await update(`Writing section ${s + 1} of ${sceneCount}…`, 40 + Math.round(((s + 1) / sceneCount) * 55));
-
-        for (let i = 0; i < bed.length; i++) {
-          await writeClip(bedTracks[i], s, bed[i].bars, `${bed[i].role} · ${bed[i].bars} bars`, bed[i].color, bed[i].notes as NoteDescription[]);
-        }
+        await update(`Writing chord ${s + 1} of ${sceneCount}…`, 70 + Math.round(((s + 1) / sceneCount) * 25));
         if (bloom && bloomTrack) {
-          await writeClip(bloomTrack, s, bloom.barsPerStep, `${bloom.stepLabels[s]} chord`, bloom.layers[s % bloom.layers.length].color, bloom.layers.flatMap((l) => l.clips[s]) as NoteDescription[]);
-        }
-        if (rhythm && rhythmTrack) {
-          await writeClip(rhythmTrack, s, PERFORM_RHYTHM_BARS, `Rhythm · ${p.rhythmStyle}`, 0xffa94d, rhythm as NoteDescription[]);
+          await writeClip(bloomTrack, s, bloom.barsPerStep, `${bloom.stepLabels[s]} chord`, bloom.layers.flatMap((l) => l.clips[s]) as NoteDescription[]);
         }
         if (bassSteps && bassTrack) {
-          await writeClip(bassTrack, s, PERFORM_BASS_BARS, `Bass ${NOTE_NAMES[stepRoots[s]]} · ${p.bassStyle}`, 0x5f3dc4, bassSteps[s] as NoteDescription[]);
+          await writeClip(bassTrack, s, PERFORM_BASS_BARS, `Bass ${NOTE_NAMES[stepRoots[s]]} · ${p.bassStyle}`, bassSteps[s] as NoteDescription[]);
         }
-        if (shimmer && shimmerTrack) {
-          await writeClip(shimmerTrack, s, PERFORM_SHIMMER_BARS, `Shimmer · ${PERFORM_SHIMMER_BARS} bars`, 0x66d9e8, shimmer as NoteDescription[]);
-        }
-
         const scene = song.scenes[base + s];
         const label = bloom ? bloom.stepLabels[s] : NOTE_NAMES[cfg.root];
-        if (scene && !scene.name) scene.name = `Section ${s + 1} · ${label}`;
+        if (scene && !scene.name) scene.name = s === 0 ? "Ambient · start" : `Chord · ${label}`;
       }
 
       if (p.softenMix) {
@@ -769,20 +764,12 @@ async function runPerform(
   );
 
   console.log(
-    `Ambient/Perform: done — ${sceneCount} section(s), ${notesWritten} note(s). ` +
-      `Launch a scene to play that section; launch another to move on (bass follows the chord). ` +
+    `Ambient/Perform: done — ${notesWritten} note(s). ` +
+      `Launch the first scene to start the loops + first chord, then tap down the Bloom and Bass ` +
+      `clips to move the harmony (the loops keep running; bass follows the chord). ` +
       `${rhythm ? 'Drop an 808/drum kit onto "Ambient Rhythm". ' : ""}` +
       `Play over it on "Ambient Play" in ${NOTE_NAMES[cfg.root]} ${cfg.mode}.`,
   );
-}
-
-/** Set a clip colour without ever letting the (undocumented) format sink it. */
-function setColor(clip: { color: number }, color: number) {
-  try {
-    clip.color = color;
-  } catch (err) {
-    console.warn("Ambient: couldn't set clip colour.", err);
-  }
 }
 
 /**

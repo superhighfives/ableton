@@ -29,22 +29,21 @@ repeating exactly.
 
 ## Playing live (Perform + Push)
 
-The **Perform** tab builds a whole rig in the current key as a set of
-self-contained **sections** — one scene per Bloom chord. Every layer has a clip
-in every scene:
+The **Perform** tab builds a whole rig in the current key:
 
-- a **Drift bed** (one track per phasing layer),
-- the **Bloom chord** for that section,
-- optional **Bass** (which **follows the chord root** of each section),
-- optional **Rhythm** (a Drum Rack — load an 808 kit) and **Aleatoric shimmer**,
+- a **Drift bed** (one track per phasing layer), a **Rhythm** loop (a Drum Rack —
+  load an 808 kit) and an **Aleatoric shimmer**, each a single clip in the first
+  scene so they **loop continuously**,
+- the **Bloom chords** and an optional **Bass** running down their own columns —
+  one clip per chord, with the bass **following each chord's root**,
 - an **armed play instrument** track — empty, ready for Push's Note mode.
 
-Because every scene is a full section, you **launch a scene to play that section
-and launch another to move on** — the bass and chord change together, no
-multi-pad tapping. The looping layers (bed/rhythm/shimmer) are duplicated across
-scenes, so they re-trigger at each change. Bass defaults on, rhythm off; the bed
-caps at 3 layers so the whole rig stays within Push's 8-column grid. An optional
-**Soften mix** drops a gentle high-cut on the master to tame harsh frequencies.
+**Launch the first scene** to start the loops and first chord, then **tap down the
+Bloom and Bass clips** to move the harmony — the loops keep running underneath.
+Bass defaults on, rhythm off; the bed caps at 3 layers so the whole rig stays
+within Push's 8-column grid. An optional **Soften mix** drops a gentle high-cut on
+the master to tame harsh frequencies. Clips take their track's colour, so each
+column reads as one colour.
 
 The extension doesn't talk to Push directly — it doesn't need to. Push is a live
 view of the Live Set, so everything generated (clips, scenes, colours) shows up
