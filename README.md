@@ -14,6 +14,7 @@ on **Live 12.4.5 Suite (public beta)** or later.
 
 | Extension | What it does | How you trigger it |
 | --- | --- | --- |
+| [**chords**](extensions/chords/) | Shows every diatonic chord in a key as a grid (degrees I–VII × variations like 7th/sus/add9), lets you click out and save named sections, then writes the selected one onto the track's Arrangement timeline as a MIDI clip — adjacent repeats extend a chord's span. | Right-click a **MIDI track** → **Map Chords…** |
 | [**progressive**](extensions/progressive/) | Generates famous chord progressions (I–V–vi–IV, ii–V–I, 12-bar blues…) in any key/mode as MIDI chord clips, for songwriting. | Right-click a **MIDI track** → **Generate Progressions…** |
 | [**ambient**](extensions/ambient/) | Generates ambient soundscapes as looping MIDI clips: **Drift** (coprime phasing loops), **Bloom** (an evolving chord progression), **Aleatoric** (a probability shimmer), **Rhythm** (drum patterns on a Drum Rack), **Bass** (a bass loop that follows the chords), **Play** (an armed, ready-to-play instrument), and **Perform** (a Push-ready rig composing them all), with tuned reverb/delay chains. | Right-click a **MIDI track** → **Generate Ambient…** |
 | [**reverse-midi**](extensions/reverse-midi/) | Reverses the timing of every note in a MIDI clip, within the span of the existing notes, as one undo step. | Right-click a **MIDI clip** → **Reverse Notes** |
@@ -39,6 +40,13 @@ develop one. To install a packaged `.ablx`:
 Extensions surface as **right-click actions** — there's no separate window to
 open. Once installed and enabled:
 
+- **chords** — create or select a **MIDI track**, right-click it → **Map
+  Chords…**. Pick a key and mode to see every diatonic chord as a grid (degrees
+  I–VII across, variations like 7th/sus/add9 down), click chords into one or more
+  named sections, then **Generate** the selected section onto the track's
+  Arrangement timeline as one continuous MIDI clip (adjacent repeats extend a
+  chord's span; 4/4). Your sections are remembered between opens. See
+  [extensions/chords/README.md](extensions/chords/README.md).
 - **progressive** — create or select a **MIDI track**, right-click its title
   bar (or an empty clip slot on it) → **Generate Progressions…**. Pick a key,
   mode, progression, voicing and output, then **Generate**. It writes the chords
