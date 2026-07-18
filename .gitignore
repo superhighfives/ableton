@@ -10,6 +10,11 @@ node_modules/
 dist/
 *.tsbuildinfo
 
+# The repo root only holds orchestration scripts (no deps), so pnpm shouldn't
+# leave a lockfile here. Anchored to root so each extension's own tracked
+# pnpm-lock.yaml is unaffected.
+/pnpm-lock.yaml
+
 # Packaged extensions
 *.ablx
 

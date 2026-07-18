@@ -15,6 +15,7 @@ on **Live 12.4.5 Suite (public beta)** or later.
 | Extension | What it does | How you trigger it |
 | --- | --- | --- |
 | [**progressive**](progressive/) | Generates famous chord progressions (I–V–vi–IV, ii–V–I, 12-bar blues…) in any key/mode as MIDI chord clips, for songwriting. | Right-click a **MIDI track** → **Generate Progressions…** |
+| [**ambient**](ambient/) | Generates ambient soundscapes as looping MIDI clips: **Drift** (coprime phasing loops), **Bloom** (an evolving chord progression), **Aleatoric** (a probability shimmer), **Rhythm** (drum patterns on a Drum Rack), **Bass** (a bass loop that follows the chords), **Play** (an armed, ready-to-play instrument), and **Perform** (a Push-ready rig composing them all), with tuned reverb/delay chains. | Right-click a **MIDI track** → **Generate Ambient…** |
 | [**reverse-midi**](reverse-midi/) | Reverses the timing of every note in a MIDI clip, within the span of the existing notes, as one undo step. | Right-click a **MIDI clip** → **Reverse Notes** |
 
 Each extension folder has its own README with full detail.
@@ -43,6 +44,14 @@ open. Once installed and enabled:
   mode, progression, voicing and output, then **Generate**. It writes the chords
   as Session clips (launchable and MIDI-mappable via Live's **MIDI Map mode**,
   ⌘M) or as an Arrangement row. See [progressive/README.md](progressive/README.md).
+- **ambient** — create or select a **MIDI track**, right-click it → **Generate
+  Ambient…**. Pick a key/mode and a generator — **Drift** (phasing pads),
+  **Bloom** (a chord progression), **Aleatoric** (a probability shimmer),
+  **Rhythm** (drum patterns on a Drum Rack), **Bass** (a bass loop that follows
+  the chords), **Play** (an armed, ready-to-play instrument), or **Perform** (a
+  Push-ready rig composing them all) — then **Generate**. It
+  builds the tracks, scenes, clips and an optional reverb/delay chain; switch to
+  Session view (Tab) to launch them. See [ambient/README.md](ambient/README.md).
 - **reverse-midi** — right-click any **MIDI clip** → **Reverse Notes**. See
   [reverse-midi/README.md](reverse-midi/README.md).
 
@@ -88,6 +97,46 @@ pnpm start      # builds and loads the extension into Live's Extension Host
 `pnpm start` keeps running and streams the extension's `console.log` output to
 your terminal — handy for debugging. The host path comes from a per-machine
 `.env` (`EXTENSION_HOST_PATH`); it's gitignored, so set yours.
+
+### Control every extension from the root
+
+The extension folders are self-contained packages (each with its own
+`node_modules`), so this repo isn't a pnpm workspace. Instead a small
+zero-dependency script ([`scripts/extensions.mjs`](scripts/extensions.mjs))
+discovers every folder with a `manifest.json` and fans a command out to each:
+
+```sh
+node scripts/extensions.mjs list   # list extensions (name + version + scripts)
+pnpm build          # dev-build every extension
+pnpm build:prod     # production-build every extension
+pnpm test           # test every extension (skips ones without a test script)
+pnpm package        # write a .ablx for every extension
+pnpm install:all    # pnpm install in every extension
+pnpm start ambient  # build + load ONE extension into Live's dev host
+
+# scope to specific extensions by folder name:
+pnpm test ambient progressive
+pnpm package ambient
+```
+
+(Use `node scripts/extensions.mjs list` for the listing — `pnpm list` is pnpm's
+own command. The root `pnpm` scripts need no install of their own.)
+
+**Running one in Live.** The dev Extension Host loads one extension at a time, so
+`start` takes the extension name:
+
+```sh
+pnpm start ambient                        # builds + loads ambient into Live
+node scripts/extensions.mjs run ambient   # the same thing
+```
+
+(`pnpm start` with no name lists the extensions; each extension's own `pnpm
+start` still works from inside its folder.)
+
+To have *every* extension live in Live together, don't dev-run them — **package
+and install** them: `pnpm package` writes a `build/<name>-<version>.ablx` for
+each, then drag those onto **Settings → Extensions**. Installed extensions all
+run together, with no terminal open.
 
 ### Common scripts
 

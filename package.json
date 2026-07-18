@@ -1,0 +1,20 @@
+{
+  "name": "ableton-extensions",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Workspace of Ableton Live 12 Extensions. Each folder is a self-contained package; these scripts fan commands out across all of them.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.11.0"
+  },
+  "scripts": {
+    "list": "node scripts/extensions.mjs list",
+    "install:all": "node scripts/extensions.mjs install",
+    "build": "node scripts/extensions.mjs build",
+    "build:prod": "node scripts/extensions.mjs build:prod",
+    "test": "node scripts/extensions.mjs test",
+    "package": "node scripts/extensions.mjs package",
+    "start": "node scripts/extensions.mjs run",
+    "ext": "node scripts/extensions.mjs"
+  }
+}
