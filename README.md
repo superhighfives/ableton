@@ -14,9 +14,9 @@ on **Live 12.4.5 Suite (public beta)** or later.
 
 | Extension | What it does | How you trigger it |
 | --- | --- | --- |
-| [**progressive**](progressive/) | Generates famous chord progressions (I–V–vi–IV, ii–V–I, 12-bar blues…) in any key/mode as MIDI chord clips, for songwriting. | Right-click a **MIDI track** → **Generate Progressions…** |
-| [**ambient**](ambient/) | Generates ambient soundscapes as looping MIDI clips: **Drift** (coprime phasing loops), **Bloom** (an evolving chord progression), **Aleatoric** (a probability shimmer), **Rhythm** (drum patterns on a Drum Rack), **Bass** (a bass loop that follows the chords), **Play** (an armed, ready-to-play instrument), and **Perform** (a Push-ready rig composing them all), with tuned reverb/delay chains. | Right-click a **MIDI track** → **Generate Ambient…** |
-| [**reverse-midi**](reverse-midi/) | Reverses the timing of every note in a MIDI clip, within the span of the existing notes, as one undo step. | Right-click a **MIDI clip** → **Reverse Notes** |
+| [**progressive**](extensions/progressive/) | Generates famous chord progressions (I–V–vi–IV, ii–V–I, 12-bar blues…) in any key/mode as MIDI chord clips, for songwriting. | Right-click a **MIDI track** → **Generate Progressions…** |
+| [**ambient**](extensions/ambient/) | Generates ambient soundscapes as looping MIDI clips: **Drift** (coprime phasing loops), **Bloom** (an evolving chord progression), **Aleatoric** (a probability shimmer), **Rhythm** (drum patterns on a Drum Rack), **Bass** (a bass loop that follows the chords), **Play** (an armed, ready-to-play instrument), and **Perform** (a Push-ready rig composing them all), with tuned reverb/delay chains. | Right-click a **MIDI track** → **Generate Ambient…** |
+| [**reverse-midi**](extensions/reverse-midi/) | Reverses the timing of every note in a MIDI clip, within the span of the existing notes, as one undo step. | Right-click a **MIDI clip** → **Reverse Notes** |
 
 Each extension folder has its own README with full detail.
 
@@ -43,7 +43,7 @@ open. Once installed and enabled:
   bar (or an empty clip slot on it) → **Generate Progressions…**. Pick a key,
   mode, progression, voicing and output, then **Generate**. It writes the chords
   as Session clips (launchable and MIDI-mappable via Live's **MIDI Map mode**,
-  ⌘M) or as an Arrangement row. See [progressive/README.md](progressive/README.md).
+  ⌘M) or as an Arrangement row. See [extensions/progressive/README.md](extensions/progressive/README.md).
 - **ambient** — create or select a **MIDI track**, right-click it → **Generate
   Ambient…**. Pick a key/mode and a generator — **Drift** (phasing pads),
   **Bloom** (a chord progression), **Aleatoric** (a probability shimmer),
@@ -51,9 +51,9 @@ open. Once installed and enabled:
   the chords), **Play** (an armed, ready-to-play instrument), or **Perform** (a
   Push-ready rig composing them all) — then **Generate**. It
   builds the tracks, scenes, clips and an optional reverb/delay chain; switch to
-  Session view (Tab) to launch them. See [ambient/README.md](ambient/README.md).
+  Session view (Tab) to launch them. See [extensions/ambient/README.md](extensions/ambient/README.md).
 - **reverse-midi** — right-click any **MIDI clip** → **Reverse Notes**. See
-  [reverse-midi/README.md](reverse-midi/README.md).
+  [extensions/reverse-midi/README.md](extensions/reverse-midi/README.md).
 
 ---
 
@@ -68,7 +68,7 @@ open. Once installed and enabled:
 
 ### Download the SDK
 
-Ableton's license forbids redistributing the SDK, so `extensions-sdk-*/` is
+Ableton's license forbids redistributing the SDK, so the contents of `sdks/` are
 **gitignored** and you download it yourself. The projects reference its `.tgz`
 packages via relative paths.
 
@@ -77,11 +77,11 @@ packages via relative paths.
 2. From the SDK release page, download:
    - **Ableton Live 12.4.5 Beta** (Suite) and install it.
    - **`extensions-sdk-<version>.zip`** — the SDK distribution.
-3. Extract the zip into this folder so `extensions-sdk-1.0.0-beta.0/` sits next
-   to `progressive/` and `reverse-midi/`. It holds the `.tgz` packages (SDK,
+3. Extract the zip into `sdks/` so `sdks/extensions-sdk-1.0.0-beta.0/` sits next
+   to the `.gitkeep`. It holds the `.tgz` packages (SDK,
    CLI, project creator), docs, API reference, and official examples.
 
-Start with `extensions-sdk-1.0.0-beta.0/docs/` or the online docs at
+Start with `sdks/extensions-sdk-1.0.0-beta.0/docs/` or the online docs at
 <https://ableton.github.io/extensions-sdk>.
 
 ### Run an extension in Live
@@ -103,7 +103,8 @@ your terminal — handy for debugging. The host path comes from a per-machine
 The extension folders are self-contained packages (each with its own
 `node_modules`), so this repo isn't a pnpm workspace. Instead a small
 zero-dependency script ([`scripts/extensions.mjs`](scripts/extensions.mjs))
-discovers every folder with a `manifest.json` and fans a command out to each:
+discovers every folder in `extensions/` with a `manifest.json` and fans a
+command out to each:
 
 ```sh
 node scripts/extensions.mjs list   # list extensions (name + version + scripts)
@@ -155,11 +156,11 @@ check its `package.json`.
 
 ## Create a new extension
 
-Scaffold a fresh project with the SDK's project creator:
+Scaffold a fresh project inside `extensions/` with the SDK's project creator:
 
 ```sh
-mkdir my-extension && cd my-extension
-pnpm dlx file:../extensions-sdk-1.0.0-beta.0/ableton-create-extension-1.0.0-beta.0.tgz
+mkdir extensions/my-extension && cd extensions/my-extension
+pnpm dlx file:../../sdks/extensions-sdk-1.0.0-beta.0/ableton-create-extension-1.0.0-beta.0.tgz
 ```
 
 It asks for a name, author, and your Live install, then writes a ready-to-run
@@ -197,9 +198,13 @@ gh release create <extension>-<version> \
 
 ```
 ableton/
-├── progressive/                 # chord-progression generator extension
-├── reverse-midi/                # MIDI-clip note reverser extension
-└── extensions-sdk-1.0.0-beta.0/ # SDK (downloaded separately, gitignored)
+├── extensions/                  # the extensions, one self-contained package each
+│   ├── ambient/                 # ambient-soundscape generator extension
+│   ├── progressive/             # chord-progression generator extension
+│   └── reverse-midi/            # MIDI-clip note reverser extension
+├── scripts/extensions.mjs       # fans pnpm commands across every extension
+└── sdks/                        # SDK (downloaded separately, gitignored)
+    └── extensions-sdk-1.0.0-beta.0/
 ```
 
 - **`.env`** holds the machine-specific path to Live's Extension Host and is

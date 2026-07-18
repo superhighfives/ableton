@@ -173,8 +173,6 @@ export interface DriftLayer {
   role: string;
   /** Loop length in bars (coprime across layers → endless phasing). */
   bars: number;
-  /** Packed 0xRRGGBB clip colour. */
-  color: number;
   notes: DriftNote[];
 }
 
@@ -186,11 +184,6 @@ const SPREADS: Record<SpreadId, [number, number]> = {
   wide: [40, 76], // E2–E5
   full: [31, 84], // G1–C6, sub to air
 };
-
-/** Cool ambient palette, low register → high. */
-const LAYER_COLORS = [
-  0x3b5bdb, 0x1971c2, 0x0c8599, 0x099268, 0x2f9e44, 0x9c6ade, 0x5f3dc4, 0x6741d9,
-];
 
 function roleFor(center: number): string {
   if (center < 40) return "Sub";
@@ -263,7 +256,6 @@ export function generateDrift(opts: DriftOptions): DriftLayer[] {
     layers.push({
       role: roleFor(center),
       bars: bars[i],
-      color: LAYER_COLORS[i % LAYER_COLORS.length],
       notes,
     });
   }
@@ -371,7 +363,6 @@ export interface BloomOptions {
 
 export interface BloomLayer {
   role: string;
-  color: number;
   /** Notes for this layer at each step (index = scene). */
   clips: DriftNote[][];
 }
@@ -427,7 +418,7 @@ export function generateBloom(opts: BloomOptions): BloomResult {
       });
     });
 
-    layers.push({ role: roleFor(center), color: LAYER_COLORS[i % LAYER_COLORS.length], clips });
+    layers.push({ role: roleFor(center), clips });
   }
 
   return { steps: nSteps, barsPerStep: opts.barsPerStep, stepLabels, stepRoots, layers };
