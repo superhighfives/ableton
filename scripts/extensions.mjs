@@ -26,6 +26,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const EXTENSIONS_DIR = join(ROOT, "extensions");
 
 /** Read JSON, or return null if it isn't there / doesn't parse. */
 function readJson(path) {
@@ -36,12 +37,12 @@ function readJson(path) {
   }
 }
 
-/** An extension is any top-level folder with a manifest.json. */
+/** An extension is any folder inside extensions/ with a manifest.json. */
 function discover() {
-  return readdirSync(ROOT, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && existsSync(join(ROOT, e.name, "manifest.json")))
+  return readdirSync(EXTENSIONS_DIR, { withFileTypes: true })
+    .filter((e) => e.isDirectory() && existsSync(join(EXTENSIONS_DIR, e.name, "manifest.json")))
     .map((e) => {
-      const dir = join(ROOT, e.name);
+      const dir = join(EXTENSIONS_DIR, e.name);
       const manifest = readJson(join(dir, "manifest.json")) ?? {};
       const pkg = readJson(join(dir, "package.json")) ?? {};
       return {
@@ -90,11 +91,13 @@ function header(text) {
  *  (not failed) where an extension doesn't define them. Returns exit code. */
 function fanOut(exts, label, args, { requireScript, optional } = {}) {
   let failures = 0;
+  let skipped = 0;
   for (const ext of exts) {
     header(`${ext.folder} — ${label}`);
     if (requireScript && !ext.scripts[requireScript]) {
       if (optional) {
         console.log(`  (no "${requireScript}" script — skipped)`);
+        skipped++;
         continue;
       }
       console.error(`  missing "${requireScript}" script`);
@@ -107,8 +110,22 @@ function fanOut(exts, label, args, { requireScript, optional } = {}) {
     console.error(`\n${failures} extension(s) failed "${label}".`);
     return 1;
   }
-  console.log(`\nAll ${exts.length} extension(s): ${label} ✓`);
+  const ran = exts.length - skipped;
+  const tail = skipped ? ` (${skipped} skipped)` : "";
+  console.log(`\n${ran} extension(s): ${label} ✓${tail}`);
   return 0;
+}
+
+/** Print the discovered extensions and the common commands. */
+function listExtensions(exts) {
+  console.log(`Extensions in this repo (${exts.length}):\n`);
+  for (const e of exts) {
+    const scripts = Object.keys(e.scripts).join(", ") || "—";
+    console.log(`  ${e.folder.padEnd(14)} v${e.version.padEnd(8)} [${scripts}]`);
+  }
+  console.log(`\nRun one in Live:   node scripts/extensions.mjs run <name>`);
+  console.log(`Build all:         node scripts/extensions.mjs build`);
+  console.log(`Package all:       node scripts/extensions.mjs package`);
 }
 
 function main() {
@@ -116,20 +133,18 @@ function main() {
   const exts = discover();
 
   if (!command || command === "list") {
-    console.log(`Extensions in this repo (${exts.length}):\n`);
-    for (const e of exts) {
-      const scripts = Object.keys(e.scripts).join(", ") || "—";
-      console.log(`  ${e.folder.padEnd(14)} v${e.version.padEnd(8)} [${scripts}]`);
-    }
-    console.log(`\nRun one in Live:   node scripts/extensions.mjs run <name>`);
-    console.log(`Build all:         node scripts/extensions.mjs build`);
-    console.log(`Package all:       node scripts/extensions.mjs package`);
+    listExtensions(exts);
     return;
   }
 
   if (command === "run") {
-    if (names.length !== 1) {
-      fail(`run needs exactly one extension.\nusage: node scripts/extensions.mjs run <${exts.map((e) => e.folder).join("|")}>`);
+    // No name → list (so `pnpm start` alone is a friendly picker, as documented).
+    if (names.length === 0) {
+      listExtensions(exts);
+      return;
+    }
+    if (names.length > 1) {
+      fail(`run takes exactly one extension.\nusage: node scripts/extensions.mjs run <${exts.map((e) => e.folder).join("|")}>`);
     }
     const [ext] = select(exts, names);
     header(`${ext.folder} — running in Live's Extension Host (Ctrl-C to stop)`);
