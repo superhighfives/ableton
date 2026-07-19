@@ -140,7 +140,7 @@ async function run(context: ExtensionContext<"1.0.0">, handle: Handle) {
   const html = dialogHtml.replace("__DEFAULTS_JSON__", () => json);
   const url = `data:text/html,${encodeURIComponent(html)}`;
 
-  const raw = await context.ui.showModalDialog(url, 720, 510);
+  const raw = await context.ui.showModalDialog(url, 720, 520);
   if (!raw) return; // closed by the host without our buttons — nothing to save
   const cfg = JSON.parse(raw) as DialogResult;
 
