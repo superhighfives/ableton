@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chords</title>
+  <style>
+    /* Reset */
+    *, *::before, *::after { box-sizing: border-box; }
+    *:not(dialog) { margin: 0; }
+    input, button, select { font: inherit; }
+
+    /* Live dark theme */
+    :root {
+      --p-live-ui-bg: hsl(0, 0%, 21%);
+      --p-live-control-bg: hsl(0, 0%, 16%);
+      --p-live-input-bg: hsl(0, 0%, 12%);
+      --p-live-text-primary: hsl(0, 0%, 71%);
+      --p-live-control-border: hsl(0, 0%, 7%);
+      --p-live-text-secondary: hsl(0, 0%, 41%);
+      --p-live-accent-primary: hsl(31, 100%, 67%);
+      --p-live-control-text--enabled: hsl(0, 0%, 7%);
+
+      --c-bg--0500: oklch(from var(--p-live-ui-bg) l c h);
+      --c-text-primary: oklch(from var(--p-live-text-primary) l c h);
+      --c-text-secondary: oklch(from var(--p-live-text-secondary) l c h);
+      --c-control-bg--400: oklch(from var(--p-live-control-bg) calc(l * 0.9) c h);
+      --c-control-bg--500: oklch(from var(--p-live-control-bg) l c h);
+      --c-control-border: oklch(from var(--p-live-control-border) l c h);
+      --c-control-outline: var(--c-text-secondary);
+      --c-control-on-foreground: oklch(from var(--p-live-control-text--enabled) l c h);
+      --c-input-bg-500: oklch(from var(--p-live-input-bg) l c h);
+      --c-highlight--primary: oklch(from var(--p-live-accent-primary) l c h);
+    }
+
+    html {
+      background-color: var(--c-bg--0500);
+      color: var(--c-text-primary);
+      font-family: "AbletonSansSmall", sans-serif;
+      font-size: 11.5px;
+      font-weight: 500;
+      -webkit-font-smoothing: antialiased;
+      height: 100%;
+    }
+
+    body { min-height: 100%; display: flex; flex-direction: column; padding: 1.1em; gap: 0.85em; overflow-y: auto; }
+
+    h1 { font-size: 1.4rem; font-weight: 600; letter-spacing: 0.01em; }
+    h1 small { color: var(--c-text-secondary); font-weight: 500; font-size: 0.9rem; }
+
+    .section { display: flex; flex-direction: column; gap: 0.4em; }
+    .section > .heading {
+      color: var(--c-text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.8rem;
+    }
+
+    .row { display: flex; gap: 0.5em; align-items: center; }
+    .row.wrap { flex-wrap: wrap; }
+    .grow { flex: 1; }
+    .spacer { flex: 1; }
+
+    .alx-input:not([type="range"]), .alx-select {
+      font-size: 1rem;
+      line-height: 1.5;
+      background-color: var(--c-input-bg-500);
+      color: var(--c-text-primary);
+      border: 1px solid var(--c-control-border);
+      height: 22px;
+      padding: 0 0.4em;
+      outline-offset: 0;
+    }
+    .alx-select:focus, .alx-input:focus { outline: 2px solid var(--c-control-outline); }
+
+    .sublabel { color: var(--c-text-secondary); flex: 0 0 auto; }
+
+    /* Segmented toggle (Major / Minor) */
+    .segmented { display: inline-flex; border: 1px solid var(--c-control-border); border-radius: 1em; overflow: hidden; }
+    .segmented button {
+      background: var(--c-control-bg--500);
+      color: var(--c-text-primary);
+      border: 0;
+      height: 22px;
+      padding: 0 1em;
+      cursor: pointer;
+    }
+    .segmented button[aria-pressed="true"] {
+      background: var(--c-highlight--primary);
+      color: var(--c-control-on-foreground);
+    }
+
+    .alx-button {
+      font-size: 1rem; line-height: 1;
+      background-color: var(--c-control-bg--500);
+      color: var(--c-text-primary);
+      border: 1px solid var(--c-control-border);
+      height: 24px; padding: 0 1.25em; border-radius: 1em;
+      cursor: pointer; user-select: none; white-space: nowrap;
+    }
+    .alx-button:hover { background-color: var(--c-control-bg--400); }
+    .alx-button:active, .alx-button.primary {
+      color: var(--c-control-on-foreground);
+      background-color: var(--c-highlight--primary);
+    }
+    .alx-button:focus { outline: 2px solid var(--c-control-outline); }
+
+    /* --- Progression tabs --- */
+    #tabs { display: flex; gap: 0.4em; align-items: center; flex-wrap: wrap; }
+    .tab {
+      background: var(--c-control-bg--500);
+      color: var(--c-text-primary);
+      border: 1px solid var(--c-control-border);
+      height: 24px; padding: 0 0.9em; border-radius: 1em;
+      cursor: pointer; user-select: none; white-space: nowrap;
+    }
+    .tab:hover { background: var(--c-control-bg--400); }
+    .tab[aria-selected="true"] {
+      background: var(--c-highlight--primary);
+      color: var(--c-control-on-foreground);
+    }
+    .tab-add {
+      width: 24px; height: 24px; padding: 0; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; line-height: 1;
+    }
+
+    /* --- Chord grid --- */
+    #grid-wrap { overflow-x: auto; }
+    table.grid { border-collapse: separate; border-spacing: 4px; width: 100%; }
+    table.grid th, table.grid td { padding: 0; }
+    table.grid thead th {
+      color: var(--c-text-secondary);
+      font-weight: 600;
+      text-align: center;
+      padding-bottom: 0.15em;
+    }
+    table.grid thead th .roman { font-size: 1.05rem; color: var(--c-text-primary); }
+    table.grid thead th .rootname { display: block; font-size: 0.8rem; color: var(--c-text-secondary); }
+    table.grid tbody th {
+      color: var(--c-text-secondary);
+      text-align: right;
+      padding-right: 0.5em;
+      font-weight: 500;
+      white-space: nowrap;
+    }
+    .cell {
+      width: 100%;
+      background: var(--c-control-bg--500);
+      color: var(--c-text-primary);
+      border: 1px solid var(--c-control-border);
+      height: 26px; border-radius: 4px;
+      cursor: pointer; user-select: none; white-space: nowrap;
+      font-size: 0.98rem;
+    }
+    .cell:hover { background: var(--c-control-bg--400); }
+    .cell:active { background: var(--c-highlight--primary); color: var(--c-control-on-foreground); }
+
+    /* --- Sequence strip --- */
+    #sequence {
+      display: flex; gap: 0.35em; align-items: center;
+      overflow-x: auto; padding: 0.45em; min-height: 48px;
+      background: var(--c-input-bg-500);
+      border: 1px solid var(--c-control-border);
+      border-radius: 4px;
+    }
+    #sequence:empty::before {
+      content: "Click chords above to build a progression — click a chip to remove it.";
+      color: var(--c-text-secondary);
+    }
+    .chip {
+      flex: 0 0 auto;
+      background: var(--c-control-bg--500);
+      color: var(--c-text-primary);
+      border: 1px solid var(--c-control-border);
+      min-height: 34px; padding: 0.2em 0.7em; border-radius: 4px;
+      cursor: pointer; user-select: none; white-space: nowrap;
+      display: inline-flex; align-items: center; gap: 0.4em;
+    }
+    .chip:hover { background: var(--c-highlight--primary); color: var(--c-control-on-foreground); }
+    .chip .stack { display: inline-flex; flex-direction: column; line-height: 1.05; }
+    .chip .name { font-size: 1rem; }
+    .chip .roman { font-size: 0.75rem; color: var(--c-text-secondary); }
+    .chip:hover .roman { color: var(--c-control-on-foreground); }
+    .chip .x { color: var(--c-text-secondary); }
+    .chip:hover .x { color: var(--c-control-on-foreground); }
+    .seq-trash {
+      flex: 0 0 auto; width: 30px; height: 30px; border-radius: 4px;
+      display: inline-flex; align-items: center; justify-content: center;
+      background: var(--c-control-bg--500);
+      color: var(--c-text-secondary);
+      border: 1px solid var(--c-control-border);
+      cursor: pointer; font-size: 1.1rem;
+    }
+    .seq-trash:hover { background: var(--c-control-bg--400); color: var(--c-text-primary); }
+
+    .footer { display: flex; gap: 0.5em; align-items: center; padding-top: 0.5em; }
+    .footer .right { margin-left: auto; display: flex; gap: 0.5em; }
+
+    .check { display: inline-flex; align-items: center; gap: 0.45em; cursor: pointer; user-select: none; }
+    .check input { accent-color: var(--c-highlight--primary); width: 14px; height: 14px; cursor: pointer; }
+  </style>
+</head>
+
+<body>
+  <h1>Chords <small>map out progressions in a key</small></h1>
+
+  <div class="row wrap">
+    <span class="sublabel">Key</span>
+    <select id="root" class="alx-select" aria-label="Root note"></select>
+    <div class="segmented" role="group" aria-label="Mode">
+      <button type="button" id="mode-major" data-mode="major">Major</button>
+      <button type="button" id="mode-minor" data-mode="minor">Minor</button>
+    </div>
+    <div class="spacer"></div>
+    <label class="check"><input type="checkbox" id="smart" checked /><span>Smart voicings</span></label>
+    <select id="length" class="alx-select" aria-label="Bar length per chord"></select>
+    <select id="instrument" class="alx-select" aria-label="Instrument"></select>
+  </div>
+
+  <div class="section">
+    <div class="heading">Chords in key</div>
+    <div id="grid-wrap"></div>
+  </div>
+
+  <div class="section">
+    <div class="heading">Progressions</div>
+    <div class="row wrap">
+      <div id="tabs" role="tablist" aria-label="Progressions"></div>
+    </div>
+    <div class="row">
+      <input id="name" class="alx-input grow" aria-label="Progression name" placeholder="Section name" />
+      <button type="button" class="alx-button" id="delete-prog">Delete section</button>
+    </div>
+    <div id="sequence" role="list" aria-label="Chord sequence"></div>
+  </div>
+
+  <div class="footer">
+    <span class="sublabel" id="summary"></span>
+    <div class="right">
+      <button type="button" class="alx-button" id="cancel">Cancel</button>
+      <button type="button" class="alx-button" id="save">Save</button>
+      <button type="button" class="alx-button primary" id="generate">Generate</button>
+    </div>
+  </div>
+
+  <script>
+  try {
+    // Injected by the extension as a plain JS literal (no decoding needed).
+    const DEFAULTS = __DEFAULTS_JSON__;
+
+    // --- Host messaging (mac WebKit / Windows WebView2) ---
+    const webkit = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.live;
+    const webview2 = window.chrome && window.chrome.webview;
+    function send(message) {
+      if (webkit) window.webkit.messageHandlers.live.postMessage(message);
+      else if (webview2) window.chrome.webview.postMessage(message);
+    }
+    function closeWith(result) {
+      send({ method: "close_and_send", params: [JSON.stringify(result)] });
+    }
+
+    // --- State (restored from the last session's work if present) ---
+    const SAVED = DEFAULTS.saved || null;
+    let mode = ((SAVED ? SAVED.mode : DEFAULTS.mode) === "minor") ? "minor" : "major";
+    let root = (SAVED ? SAVED.root : DEFAULTS.root) | 0;
+    // Progressions: each has a name and a sequence of { degree, variationId }.
+    let progressions = (SAVED && SAVED.sections && SAVED.sections.length)
+      ? SAVED.sections
+      : [{ name: "Verse", seq: [] }];
+    let activeIndex = (SAVED && SAVED.activeIndex >= 0 && SAVED.activeIndex < progressions.length)
+      ? SAVED.activeIndex
+      : 0;
+    const active = () => progressions[activeIndex];
+
+    // Name a chord for the current key from the injected grid (root-independent
+    // suffixes + the selected root letter).
+    function chordName(degree, variationId) {
+      const col = DEFAULTS.grid[mode].find((d) => d.degree === degree);
+      const letter = DEFAULTS.noteNames[((root + col.rootOffset) % 12 + 12) % 12];
+      return letter + (col.suffixes[variationId] || "");
+    }
+
+    // The Roman numeral of a degree in the current mode (e.g. "I", "vi", "vii°").
+    function romanFor(degree) {
+      const col = DEFAULTS.grid[mode].find((d) => d.degree === degree);
+      return col ? col.roman : "";
+    }
+
+    // --- Root note dropdown ---
+    const rootSel = document.getElementById("root");
+    DEFAULTS.noteNames.forEach((name, i) => {
+      const opt = document.createElement("option");
+      opt.value = String(i);
+      opt.textContent = name;
+      if (i === root) opt.selected = true;
+      rootSel.appendChild(opt);
+    });
+    rootSel.addEventListener("change", () => { root = Number(rootSel.value); renderGrid(); renderSequence(); });
+
+    // --- Instrument dropdown ---
+    const instrSel = document.getElementById("instrument");
+    DEFAULTS.instruments.forEach((name) => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name === "None" ? "No instrument" : name;
+      instrSel.appendChild(opt);
+    });
+    if (SAVED && [...instrSel.options].some((o) => o.value === SAVED.instrument)) {
+      instrSel.value = SAVED.instrument;
+    }
+
+    // --- Bar-length dropdown (length of one clicked step) ---
+    const LENGTHS = [
+      { label: "½ bar / chord", beats: 2 },
+      { label: "1 bar / chord", beats: 4 },
+      { label: "2 bars / chord", beats: 8 },
+      { label: "4 bars / chord", beats: 16 },
+    ];
+    const lengthSel = document.getElementById("length");
+    LENGTHS.forEach((l) => {
+      const opt = document.createElement("option");
+      opt.value = String(l.beats);
+      opt.textContent = l.label;
+      if (l.beats === 4) opt.selected = true;
+      lengthSel.appendChild(opt);
+    });
+    if (SAVED && [...lengthSel.options].some((o) => o.value === String(SAVED.barBeats))) {
+      lengthSel.value = String(SAVED.barBeats);
+    }
+
+    // --- Chord grid ---
+    const gridWrap = document.getElementById("grid-wrap");
+    function renderGrid() {
+      const cols = DEFAULTS.grid[mode];
+      const table = document.createElement("table");
+      table.className = "grid";
+
+      const thead = document.createElement("thead");
+      const htr = document.createElement("tr");
+      htr.appendChild(document.createElement("th")); // corner
+      cols.forEach((col) => {
+        const th = document.createElement("th");
+        const roman = document.createElement("span");
+        roman.className = "roman";
+        roman.textContent = col.roman;
+        const rootname = document.createElement("span");
+        rootname.className = "rootname";
+        rootname.textContent = chordName(col.degree, "triad");
+        th.append(roman, rootname);
+        htr.appendChild(th);
+      });
+      thead.appendChild(htr);
+      table.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+      DEFAULTS.variations.forEach((v) => {
+        const tr = document.createElement("tr");
+        const rowLabel = document.createElement("th");
+        rowLabel.scope = "row";
+        rowLabel.textContent = v.label;
+        tr.appendChild(rowLabel);
+        cols.forEach((col) => {
+          const td = document.createElement("td");
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "cell";
+          btn.textContent = chordName(col.degree, v.id);
+          btn.title = "Add " + btn.textContent + " to " + active().name;
+          btn.addEventListener("click", () => addChord(col.degree, v.id));
+          td.appendChild(btn);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+
+      gridWrap.innerHTML = "";
+      gridWrap.appendChild(table);
+    }
+
+    // --- Progression tabs ---
+    const tabsEl = document.getElementById("tabs");
+    function renderTabs() {
+      tabsEl.innerHTML = "";
+      progressions.forEach((p, i) => {
+        const tab = document.createElement("button");
+        tab.type = "button";
+        tab.className = "tab";
+        tab.setAttribute("role", "tab");
+        tab.setAttribute("aria-selected", String(i === activeIndex));
+        tab.textContent = p.name || "Section " + (i + 1);
+        tab.addEventListener("click", () => { activeIndex = i; syncActive(); });
+        tabsEl.appendChild(tab);
+      });
+      const add = document.createElement("button");
+      add.type = "button";
+      add.className = "tab tab-add";
+      add.textContent = "+";
+      add.title = "Add a section";
+      add.setAttribute("aria-label", "Add a section");
+      add.addEventListener("click", () => {
+        progressions.push({ name: "Section " + (progressions.length + 1), seq: [] });
+        activeIndex = progressions.length - 1;
+        syncActive();
+      });
+      tabsEl.appendChild(add);
+    }
+
+    // --- Name field + delete ---
+    const nameInput = document.getElementById("name");
+    nameInput.addEventListener("input", () => {
+      active().name = nameInput.value;
+      renderTabs();
+    });
+    document.getElementById("delete-prog").addEventListener("click", () => {
+      if (progressions.length === 1) {
+        // Never leave zero sections; just clear the last one.
+        progressions[0] = { name: "Verse", seq: [] };
+        activeIndex = 0;
+      } else {
+        progressions.splice(activeIndex, 1);
+        if (activeIndex >= progressions.length) activeIndex = progressions.length - 1;
+      }
+      syncActive();
+    });
+
+    // --- Sequence strip ---
+    const seqEl = document.getElementById("sequence");
+    function renderSequence() {
+      seqEl.innerHTML = "";
+      active().seq.forEach((cell, i) => {
+        const chip = document.createElement("div");
+        chip.className = "chip";
+        chip.setAttribute("role", "listitem");
+        const stack = document.createElement("span");
+        stack.className = "stack";
+        const name = document.createElement("span");
+        name.className = "name";
+        name.textContent = chordName(cell.degree, cell.variationId);
+        const roman = document.createElement("span");
+        roman.className = "roman";
+        roman.textContent = romanFor(cell.degree);
+        stack.append(name, roman);
+        const x = document.createElement("span");
+        x.className = "x";
+        x.textContent = "✕";
+        chip.append(stack, x);
+        chip.title = "Remove";
+        chip.addEventListener("click", () => { active().seq.splice(i, 1); renderSequence(); });
+        seqEl.appendChild(chip);
+      });
+      if (active().seq.length) {
+        const trash = document.createElement("button");
+        trash.type = "button";
+        trash.className = "seq-trash";
+        trash.textContent = "🗑";
+        trash.title = "Clear this progression";
+        trash.setAttribute("aria-label", "Clear this progression");
+        trash.addEventListener("click", () => { active().seq = []; renderSequence(); });
+        seqEl.appendChild(trash);
+      }
+      updateSummary();
+    }
+
+    function addChord(degree, variationId) {
+      active().seq.push({ degree, variationId });
+      renderSequence();
+    }
+
+    function updateSummary() {
+      const beats = Number(lengthSel.value);
+      const bars = (active().seq.length * beats) / 4;
+      const n = active().seq.length;
+      document.getElementById("summary").textContent =
+        n ? n + " chord" + (n === 1 ? "" : "s") + " · " + bars + " bar" + (bars === 1 ? "" : "s") : "";
+    }
+    lengthSel.addEventListener("change", updateSummary);
+
+    // Re-point the name field and sequence at the active progression.
+    function syncActive() {
+      nameInput.value = active().name;
+      renderTabs();
+      renderGrid(); // cell titles reference the active section name
+      renderSequence();
+    }
+
+    // --- Mode toggle ---
+    function setMode(next) {
+      if (next === mode) return;
+      mode = next;
+      document.getElementById("mode-major").setAttribute("aria-pressed", String(mode === "major"));
+      document.getElementById("mode-minor").setAttribute("aria-pressed", String(mode === "minor"));
+      // Degrees keep their meaning across modes, so sequences carry over; only
+      // the chord qualities (and names) change.
+      renderGrid();
+      renderSequence();
+    }
+    document.getElementById("mode-major").addEventListener("click", () => setMode("major"));
+    document.getElementById("mode-minor").addEventListener("click", () => setMode("minor"));
+    document.getElementById("mode-major").setAttribute("aria-pressed", String(mode === "major"));
+    document.getElementById("mode-minor").setAttribute("aria-pressed", String(mode === "minor"));
+
+    // --- Actions ---
+    // The whole working state is posted back on *every* close so the extension
+    // can persist it; `action` says whether to also generate clips.
+    function payload(action) {
+      return {
+        action,
+        root,
+        mode,
+        smart: document.getElementById("smart").checked,
+        barBeats: Number(lengthSel.value),
+        instrument: instrSel.value,
+        activeIndex,
+        sections: progressions,
+      };
+    }
+    document.getElementById("generate").addEventListener("click", () => closeWith(payload("generate")));
+    document.getElementById("save").addEventListener("click", () => closeWith(payload("save")));
+    document.getElementById("cancel").addEventListener("click", () => closeWith(payload("cancel")));
+    document.addEventListener("keydown", (e) => {
+      // Don't hijack Enter while renaming a section.
+      if (e.key === "Enter" && e.target !== nameInput) closeWith(payload("generate"));
+      if (e.key === "Escape") closeWith(payload("cancel")); // Escape discards, like Cancel
+    });
+
+    // --- First paint ---
+    if (SAVED) document.getElementById("smart").checked = !!SAVED.smart;
+    renderGrid();
+    syncActive();
+  } catch (err) {
+    // Surface any init failure in the dialog itself rather than a blank panel.
+    document.body.innerHTML =
+      '<pre style="color:#ff8787;white-space:pre-wrap;padding:1em;font-size:12px">' +
+      'Chords dialog error:\n\n' + ((err && err.stack) || String(err)) + '</pre>';
+  }
+  </script>
+</body>
+
+</html>
