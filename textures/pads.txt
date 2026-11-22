@@ -1,0 +1,4 @@
+# Sustained, tonal textures to load into Simpler, Sampler or Granulator III and play.
+# Run with --key so they line up with chords and bass.
+warm tape-saturated pad, slowly breathing, single sustained chord, no drums, no melody
+foggy choir-like drone pad, airy and soft, sustained, no drums, no melody

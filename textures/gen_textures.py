@@ -77,6 +77,8 @@ def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("prompts", help="text file, one prompt per line")
     p.add_argument("--duration", type=int, default=60, help="seconds, 1-190 (default 60)")
+    p.add_argument("--key", help='musical key added to every prompt, e.g. "D minor"')
+    p.add_argument("--bpm", type=int, help="tempo added to every prompt, e.g. 70")
     p.add_argument("--seed", type=int, help="fixed seed for every prompt (default: random per prompt)")
     p.add_argument("--steps", type=int, default=8, help="diffusion steps, 4-8 (default 8)")
     p.add_argument("--cfg", type=float, default=1.0, help="prompt adherence, 1-25 (default 1)")
@@ -102,11 +104,17 @@ def main():
             sys.exit("ffmpeg not found on PATH")
         args.out.mkdir(parents=True, exist_ok=True)
 
+    # Stable Audio reads key and tempo from the prompt text itself.
+    suffix = "".join(f", {s}" for s in (args.key and f"in {args.key}", args.bpm and f"{args.bpm} BPM") if s)
+    tags = "".join(f"_{s}" for s in (args.key and slugify(args.key, 12).replace("-", ""),
+                                     args.bpm and f"{args.bpm}bpm") if s)
+
     today = datetime.date.today().isoformat()
     total_time = 0.0
-    for i, prompt in enumerate(prompts, 1):
+    for i, base in enumerate(prompts, 1):
+        prompt = base + suffix
         seed = args.seed if args.seed is not None else random.randint(0, 2**31 - 1)
-        name = f"{today}_{slugify(prompt)}_{seed}"
+        name = f"{today}_{slugify(base)}{tags}_{seed}"
         inputs = {"prompt": prompt, "duration": args.duration, "seed": seed,
                   "steps": args.steps, "cfg_scale": args.cfg}
         print(f"[{i}/{len(prompts)}] {args.duration}s seed {seed}: {prompt}")
@@ -125,7 +133,7 @@ def main():
                 raw.write_bytes(resp.read())
             to_wav(raw, args.out / f"{name}.wav")
 
-        meta = {"prompt": prompt, "model": MODEL, "version": pred.get("version"),
+        meta = {"prompt": prompt, "key": args.key, "bpm": args.bpm, "model": MODEL, "version": pred.get("version"),
                 "prediction_id": pred["id"], "input": inputs,
                 "predict_time_s": predict_time, "created_at": pred.get("created_at")}
         (args.out / f"{name}.json").write_text(json.dumps(meta, indent=2) + "\n")
