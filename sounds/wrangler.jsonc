@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sounds",
+  "main": "./src/server.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // Workers creates the DNS record and certificate for this hostname, since the
+  // charliegleason.com zone is on the same Cloudflare account.
+  "routes": [{ "pattern": "sounds.charliegleason.com", "custom_domain": true }]
+}

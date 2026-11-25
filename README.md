@@ -8,6 +8,10 @@ Extensions read and rewrite a Live Set — tracks, clips, MIDI, scenes, devices,
 tempo and more — and are triggered from right-click menus inside Live. They run
 on **Live 12.4.5 Suite (public beta)** or later.
 
+It also holds **[Fog & Pulse](https://sounds.charliegleason.com)**, a
+step-by-step course in music production with Live, in [`sounds/`](sounds/). It
+deploys to Cloudflare Workers on every push to `main`.
+
 ---
 
 ## Extensions
@@ -211,6 +215,7 @@ ableton/
 │   ├── progressive/             # chord-progression generator extension
 │   └── reverse-midi/            # MIDI-clip note reverser extension
 ├── scripts/extensions.mjs       # fans pnpm commands across every extension
+├── sounds/                      # Fog & Pulse course site (TanStack Start on Workers)
 └── sdks/                        # SDK (downloaded separately, gitignored)
     └── extensions-sdk-1.0.0-beta.0/
 ```
