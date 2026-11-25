@@ -4,9 +4,9 @@
 at [sounds.charliegleason.com](https://sounds.charliegleason.com). A companion to
 [Chords](https://chords.charliegleason.com).
 
-Built with TanStack Start on Cloudflare Workers. Every push to `main` that touches
-`sounds/` builds and deploys it (`.github/workflows/sounds.yml`); pull requests
-only build it.
+Built with TanStack Start on Cloudflare Workers, deployed with the `cf` CLI like
+Chords. Every push to `main` that touches `sounds/` checks, builds and deploys it
+(`.github/workflows/sounds.yml`); pull requests are checked and dry-run only.
 
 ## Content
 
@@ -33,20 +33,17 @@ there's no backend.
 
 ```sh
 pnpm install
-pnpm dev        # Vite dev server
+pnpm dev        # cf dev: the app in the local Workers runtime
 pnpm typecheck
-pnpm build
-pnpm preview    # build, then run the real Worker locally with wrangler dev
+pnpm build      # cf build, into .cloudflare/
 ```
 
 ## Deploy
 
-Deploys run from GitHub Actions and need two repository secrets:
+`cloudflare.config.ts` names the Worker and its domain. Deploys run from GitHub
+Actions with the repository secrets `CLOUDFLARE_API_TOKEN` and
+`CLOUDFLARE_ACCOUNT_ID`, shared with Chords. The domain makes Cloudflare create
+the DNS record and certificate on the first deploy.
 
-- `CLOUDFLARE_API_TOKEN`: a token with **Workers Scripts: Edit** on the account
-  and **Workers Routes: Edit** plus **DNS: Edit** on the `charliegleason.com`
-  zone (the "Edit Cloudflare Workers" template covers it).
-- `CLOUDFLARE_ACCOUNT_ID`: the account the `charliegleason.com` zone is on.
-
-The custom domain in `wrangler.jsonc` makes Workers create the DNS record and
-certificate on the first deploy. To deploy by hand instead: `pnpm deploy`.
+To deploy by hand: `pnpm run deploy` (not `pnpm deploy`, which is a pnpm
+built-in).

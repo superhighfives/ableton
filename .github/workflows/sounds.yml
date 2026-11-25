@@ -1,66 +1,43 @@
 name: Sounds
 
-# Builds the Fog & Pulse site (sounds/) on pull requests, and builds then deploys
-# it to sounds.charliegleason.com on every push to main that touches it.
+# Check every pull request that touches sounds/. Deploy to Cloudflare only on
+# pushes to main.
 on:
+  pull_request:
+    paths: ["sounds/**", ".github/workflows/sounds.yml"]
   push:
     branches: [main]
     paths: ["sounds/**", ".github/workflows/sounds.yml"]
-  pull_request:
-    paths: ["sounds/**", ".github/workflows/sounds.yml"]
-  workflow_dispatch:
 
 concurrency:
-  # One production target: never run two deploys at once, never cancel one midway.
-  group: sounds-${{ github.event_name == 'pull_request' && github.ref || 'production' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
-permissions:
-  contents: read
+  group: sounds-${{ github.ref }}
+  cancel-in-progress: true
 
 defaults:
   run:
     working-directory: sounds
 
 jobs:
-  build:
-    name: typecheck · build
+  deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    env:
+      CF_SEND_TELEMETRY: "false"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
         with:
-          version: 10
-      - uses: actions/setup-node@v5
+          package_json_file: sounds/package.json
+      - uses: actions/setup-node@v6
         with:
           node-version: 24
           cache: pnpm
           cache-dependency-path: sounds/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      - run: pnpm build
-
-  deploy:
-    name: deploy
-    needs: build
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: sounds/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm build
-      - name: Deploy to Cloudflare Workers
-        run: pnpm exec wrangler deploy
+      - run: pnpm exec cf build
+      - run: pnpm exec cf deploy --prebuilt --dry-run
+      - if: github.event_name == 'push'
+        run: pnpm exec cf deploy --prebuilt
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

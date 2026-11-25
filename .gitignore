@@ -10,6 +10,7 @@ node_modules/
 dist/
 *.tsbuildinfo
 .wrangler/
+.cloudflare/
 
 # The repo root only holds orchestration scripts (no deps), so pnpm shouldn't
 # leave a lockfile here. Anchored to root so each extension's own tracked
