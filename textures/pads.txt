@@ -1,0 +1,5 @@
+# Sustained, tonal textures to load into Simpler, Sampler or Granulator III and play.
+# Run with --key; mood words ("sad", "somber") and naming the triad help the model
+# land on minor rather than major.
+sad minor-key ambient pad, warm tape saturation, slowly breathing, sustained triad, somber, no drums, no melody
+somber foggy choir-like drone pad, dark minor triad, airy and soft, sustained, no drums, no melody

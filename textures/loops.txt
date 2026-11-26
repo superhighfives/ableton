@@ -1,0 +1,4 @@
+# Bed loops to sit under drums in Session View, warped to the set's tempo.
+# Run with --key and --bpm. At 70 BPM, --duration 48 is exactly 14 bars of 4/4.
+sad minor-key ambient bed, soft pulsing pads, gentle tape hiss, somber and dark, seamless loop, no drums
+melancholic granular shimmer over a low minor drone, slow rhythmic swells, seamless loop, no drums

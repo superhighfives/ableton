@@ -1,0 +1,6 @@
+# One prompt per line. Lines starting with # are skipped.
+# Fog vignette: slow, wide, no melody, so they sit under a chord bed.
+distant foghorn drone over light rain, slow evolving, no melody
+low harbour fog ambience, soft wind, distant water lapping, no melody
+warm tape-saturated pad texture, slowly breathing, granular shimmer, no drums
+muffled city at night through a window, faint hum, distant traffic, no music
