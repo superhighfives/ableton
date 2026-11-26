@@ -1,5 +1,7 @@
 # Ableton Live Extensions
 
+> **Moved.** This repo now lives in the [`music`](https://github.com/superhighfives/music) monorepo, in [`ableton/`](https://github.com/superhighfives/music/tree/main/ableton), with its full history. Releases up to progressive and reverse-midi 1.0.0 stay on this repo's [Releases page](https://github.com/superhighfives/ableton/releases). This repo is archived.
+
 A workspace for **building and sharing Ableton Live 12 Extensions** — custom
 JavaScript/TypeScript tools that extend Live using the
 [Ableton Extensions SDK](https://ableton.github.io/extensions-sdk).
