@@ -19,6 +19,7 @@ locked up: tweak the notes, swap the instrument, remap the harmony.
 | **Bass** | A **low-register loop on the tonic** — Sustain (held sub), Pulse (root each beat), or Walk (root → fifth → octave). | A foundation on its own; in Perform it **follows the Bloom chord roots**. |
 | **Play** | Turns the track into a **ready-to-play instrument** — instrument + FX, an optional Arpeggiator, armed for Push's Note mode. No clips. | The voice you play live over the loops, in tune with the current key. |
 | **Perform** | A **Push-ready rig** composing all of the above — bed + progression + rhythm + bass + shimmer + Play instrument, in one key. | Assembles the loops-plus-instrument setup for live playing (see below). |
+| **Template** | A **starting set**: Beds, Pad, a 16-pad Drum Rack, Bass and an armed Play track, with returns, sends and arrangement scenes. | Run it on a new Live Set, then save that as a template (see below). |
 
 Drift, Bloom, Aleatoric, Rhythm, Bass and Play each set up one "instrument" (a
 track); **Perform** composes them into a single rig, within Push's 8 columns.
@@ -67,6 +68,33 @@ by a Reverb and a Delay, tuned wetter than their defaults so a launched clip
 already sounds ambient. Device and parameter tuning is best-effort — if a device
 name or parameter differs in your Live build, the clip still generates; you just
 add the effects yourself.
+
+## Starting template
+
+The **Template** tab builds a whole starting set in the chosen key. Run it on a
+new Live Set (File → New Live Set), then keep it with **File → Save Live Set As
+Template**.
+
+- **Beds** (audio): EQ Eight high-pass at 150 Hz → Auto Filter.
+- **Pad** (MIDI): Simpler, looping with a slow attack and release, transposed so
+  the root key plays the root. It loads the newest pad texture in this key from
+  `User Library/Samples/AI Textures` (made by `textures/gen_textures.py`), if
+  there is one.
+- **Drums** (MIDI): a Drum Rack of Simplers from C1. Nine pads hold Core Library
+  one-shots (kick, rim, snare, clap, hats, tom, perc, shaker) with the kick tuned
+  to the root; six stay empty for your own texture slices. Then Drum Buss and
+  Glue Compressor.
+- **Bass** (MIDI): Operator's default sine → Utility (Bass Mono) → Compressor.
+- **Play** (MIDI): the Sound instrument → EQ Eight, armed for Push.
+- **Returns**: A becomes Space (EQ Eight → reverb, fully wet), B becomes Echo
+  (delay, fully wet → Auto Filter). Every track gets starting send levels.
+- **Scenes**: Fog, Pad, Pulse, Strip back, Swell, Tail, with a half-time beat and
+  a bass note on the root in Pulse.
+
+Extensions can only insert Live's own devices, so the Max for Live drum synths
+and third-party plug-ins aren't used, and a few things are left to do by hand:
+set the Bass compressor's sidechain to Drums, and swap in plug-ins such as
+SuperPlate or EchoBoy on the returns if you want them.
 
 ## Install (the easy way)
 

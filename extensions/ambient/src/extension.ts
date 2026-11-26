@@ -1,7 +1,14 @@
+import { existsSync, readdirSync, statSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
+
 import {
   initialize,
   Device,
+  DrumChain,
+  DrumRack,
   MidiTrack,
+  Simpler,
   Track,
   type ActivationContext,
   type ExtensionContext,
@@ -43,7 +50,7 @@ const AMBIENT_TEMPO = 70;
 /** What the dialog posts back. */
 interface DialogResult {
   cancelled?: boolean;
-  tab: "drift" | "bloom" | "aleatoric" | "rhythm" | "bass" | "play" | "perform";
+  tab: "drift" | "bloom" | "aleatoric" | "rhythm" | "bass" | "play" | "perform" | "template";
   root: number;
   mode: ModeId;
   instrument: string; // an INSTRUMENTS value, or "None"
@@ -106,6 +113,11 @@ interface DialogResult {
     playInstrument: string;
     softenMix: boolean;
     vary: boolean;
+  };
+  template: {
+    returns: boolean;
+    scenes: boolean;
+    clips: boolean;
   };
 }
 
@@ -191,6 +203,8 @@ async function run(context: ExtensionContext<"1.0.0">, handle: Handle) {
     await runPlay(context, track, cfg);
   } else if (cfg.tab === "perform") {
     await runPerform(context, track, cfg);
+  } else if (cfg.tab === "template") {
+    await runTemplate(context, track, cfg);
   }
 }
 
@@ -773,6 +787,374 @@ async function runPerform(
 }
 
 /**
+ * Template Drum Rack, from C1 (MIDI 36) up. Each pad is a Simpler: `sample` is a
+ * Core Library one-shot (relative to One Shots/Drums), `null` an empty Simpler
+ * for your own texture slices. Extensions can only insert Live's built-in
+ * devices, so the Max for Live drum synths (DS Kick and friends) are out.
+ */
+const TEMPLATE_PADS: { note: number; sample: string | null; role: string }[] = [
+  { note: 36, sample: "Kick/Kick 49 Hz.wav", role: "kick" },
+  { note: 37, sample: "Rim/Rim 808.aif", role: "rim" },
+  { note: 38, sample: "Snare/Snare Butta Soft.wav", role: "snare" },
+  { note: 39, sample: "Clap/Clap 808.aif", role: "clap" },
+  { note: 40, sample: null, role: "texture hat A" },
+  { note: 41, sample: null, role: "texture hat B" },
+  { note: 42, sample: "Hihat/Hihat Closed 45 Vinyl.wav", role: "closed hat" },
+  { note: 43, sample: "Tom/Tom 80s Low.aif", role: "low perc" },
+  { note: 44, sample: "Hihat/Hihat Open KUCKA Soft.aif", role: "open hat" },
+  { note: 45, sample: "Misc Percussion/Perc Kling.wav", role: "high perc" },
+  { note: 46, sample: "Shaker/Shaker 70s MPC.wav", role: "shaker" },
+  { note: 47, sample: null, role: "foley" },
+  { note: 48, sample: null, role: "tape hiss" },
+  { note: 49, sample: null, role: "swell" },
+  { note: 50, sample: null, role: "reverse" },
+];
+/** The template kick's sample sits at 49 Hz (G1); it's transposed to the root. */
+const TEMPLATE_KICK_HZ = 49;
+
+/** Scene names for the template's arrangement, top to bottom. */
+const TEMPLATE_SCENES = ["Fog", "Pad", "Pulse", "Strip back", "Swell", "Tail"];
+/** Scene the starter clips go in. */
+const TEMPLATE_PULSE_SCENE = 2;
+
+/**
+ * Send levels per track as fractions of each send's range: [A Space, B Echo].
+ * Rough starting points to adjust by ear.
+ */
+const TEMPLATE_SENDS: Record<string, [number, number]> = {
+  Beds: [0.55, 0.25],
+  Pad: [0.6, 0.4],
+  Drums: [0.35, 0.15],
+  Bass: [0, 0],
+  Play: [0.55, 0.45],
+};
+
+/**
+ * Template: build a Fog & Pulse starting set in the current key. Beds (audio),
+ * Pad (Simpler), Drums (a 16-pad rack with the kick tuned to the root), Bass
+ * (Operator sine, mono lows) and an armed Play track; the first two returns
+ * become Space and Echo, every track gets sends, and the scenes are named for
+ * the arrangement. Third-party plugins can't be loaded from an extension, so
+ * everything is built from Live's own devices.
+ */
+async function runTemplate(
+  context: ExtensionContext<"1.0.0">,
+  anchor: MidiTrack<"1.0.0">,
+  cfg: DialogResult,
+) {
+  const song = context.application.song;
+  const t = cfg.template;
+  const seed = Math.floor(Math.random() * 1e9);
+  // Kick and bass sit on the root in octave 1 (C1 = MIDI 24 in Live's naming).
+  const rootHz = 440 * Math.pow(2, (24 + cfg.root - 69) / 12);
+  // Simpler plays a sample at its recorded pitch on C3; shift so the root key does.
+  const transpose = cfg.root > 6 ? 12 - cfg.root : -cfg.root;
+
+  console.log(
+    `Ambient/Template: start — key=${NOTE_NAMES[cfg.root]} ${cfg.mode}, kick ${rootHz.toFixed(2)} Hz, ` +
+      `returns=${t.returns}, scenes=${t.scenes}, clips=${t.clips}.`,
+  );
+
+  await context.ui.withinProgressDialog("Building template…", { progress: 0 }, async (update, signal) => {
+    await update("Creating tracks…", 5);
+    const beds = await song.createAudioTrack();
+    const pad = anchor.devices.length === 0 ? anchor : await song.createMidiTrack();
+    const drums = await song.createMidiTrack();
+    const bass = await song.createMidiTrack();
+    const play = await song.createMidiTrack();
+    const tracks: [string, Track<"1.0.0">][] = [
+      ["Beds", beds],
+      ["Pad", pad],
+      ["Drums", drums],
+      ["Bass", bass],
+      ["Play", play],
+    ];
+    for (const [name, track] of tracks) track.name = name;
+    if (signal.aborted) return;
+
+    await update("Beds and pad…", 15);
+    await highPass(await insertDeviceSafely(beds, "EQ Eight"), 150);
+    await insertDeviceSafely(beds, "Auto Filter");
+    const simpler = await insertDeviceSafely(pad, "Simpler");
+    const texture = findKeyedTexture(cfg.root, cfg.mode);
+    if (simpler && texture) {
+      try {
+        await context.getObjectFromHandle(simpler.handle, Simpler).replaceSample(texture);
+        console.log(`Ambient/Template: Pad loaded ${texture}.`);
+      } catch (err) {
+        console.warn(`Ambient/Template: couldn't load ${texture} into the Pad.`, err);
+      }
+    }
+    if (simpler) {
+      await setParam(simpler, "S Loop On", 1);
+      await setParam(simpler, "S Loop Fade", 0.35);
+      await setParam(simpler, "Ve Attack", 0.45);
+      await setParam(simpler, "Ve Release", 0.6);
+      await setParam(simpler, "Spread", 30);
+      await setParam(simpler, "Transpose", transpose);
+    }
+    await highPass(await insertDeviceSafely(pad, "EQ Eight"), 150);
+    if (signal.aborted) return;
+
+    await update("Drum Rack…", 25);
+    await buildTemplateDrums(context, drums, rootHz, async (i) => {
+      await update(`Drum pad ${i + 1} of ${TEMPLATE_PADS.length}…`, 25 + Math.round((i / TEMPLATE_PADS.length) * 40));
+    });
+    const buss = await insertDeviceSafely(drums, "Drum Buss");
+    if (buss) {
+      await setParam(buss, "Drive", 0.15);
+      await setParam(buss, "Boom Amt", 0.2);
+    }
+    const glue = await insertDeviceSafely(drums, "Glue Compressor");
+    if (glue) {
+      // Ratio steps are 2, 4, 10; attack steps 0.01, 0.1, 0.3, 1, 3, 10, 30 ms.
+      await setParamItem(glue, "Ratio", (n) => n.startsWith("2"), 0);
+      await setParamItem(glue, "Attack", (n) => n.startsWith("10"), 5);
+    }
+    if (signal.aborted) return;
+
+    await update("Bass and play…", 70);
+    // Operator's default patch is a single sine: a sub bass as it stands.
+    await insertDeviceSafely(bass, "Operator");
+    const utility = await insertDeviceSafely(bass, "Utility");
+    if (utility) await setParam(utility, "Bass Mono", 1);
+    await insertDeviceSafely(bass, "Compressor");
+    if (cfg.instrument !== "None") await insertDeviceSafely(play, cfg.instrument);
+    await highPass(await insertDeviceSafely(play, "EQ Eight"), 150);
+    try {
+      play.arm = true;
+    } catch (err) {
+      console.warn("Ambient/Template: couldn't arm the Play track.", err);
+    }
+
+    if (t.returns) {
+      await update("Returns…", 80);
+      await buildTemplateReturns(song);
+    }
+
+    await update("Sends…", 85);
+    for (const [name, track] of tracks) {
+      const sends = track.mixer.sends;
+      const levels = TEMPLATE_SENDS[name];
+      for (let i = 0; i < Math.min(2, sends.length); i++) {
+        try {
+          await sends[i].setValue(sends[i].min + (sends[i].max - sends[i].min) * levels[i]);
+        } catch (err) {
+          console.warn(`Ambient/Template: couldn't set send ${i} on ${name}.`, err);
+        }
+      }
+    }
+
+    await update("Scenes and clips…", 90);
+    const allTracks = tracks.map(([, track]) => track);
+    const sceneCount = t.scenes ? TEMPLATE_SCENES.length : 1;
+    const base = await reserveScenes(song, allTracks, sceneCount);
+    if (t.scenes) {
+      TEMPLATE_SCENES.forEach((label, i) => {
+        const scene = song.scenes[base + i];
+        if (scene && !scene.name) scene.name = label;
+      });
+    }
+    if (t.clips) {
+      const at = base + (t.scenes ? TEMPLATE_PULSE_SCENE : 0);
+      const beat = generateRhythm({ bars: 2, style: "half", vary: true, seed });
+      const low = generateBass({ root: cfg.root, mode: cfg.mode, bars: 4, style: "sustain", vary: false, seed });
+      for (const [track, bars, name, notes] of [
+        [drums, 2, "Half-time", beat],
+        [bass, 4, `Bass · ${NOTE_NAMES[cfg.root]}`, low],
+      ] as const) {
+        const slot = track.clipSlots[at];
+        if (!slot) continue;
+        const clip = await slot.createMidiClip(bars * 4);
+        clip.notes = notes as NoteDescription[];
+        clip.name = name;
+        clip.looping = true;
+      }
+    }
+    await update("Done", 100);
+  });
+
+  console.log(
+    `Ambient/Template: done. Drop textures onto Pad's Simpler and the teal drum pads, ` +
+      `set the Bass compressor's sidechain to Drums, then File → Save Live Set As Template.`,
+  );
+}
+
+/** A Drum Rack with one chain per template pad, the kick tuned to the root. */
+async function buildTemplateDrums(
+  context: ExtensionContext<"1.0.0">,
+  track: MidiTrack<"1.0.0">,
+  rootHz: number,
+  progress: (i: number) => Promise<void>,
+) {
+  const device = await insertDeviceSafely(track, DRUM_RACK);
+  if (!device) return;
+  const rack = context.getObjectFromHandle(device.handle, DrumRack);
+  const oneShots = coreLibraryOneShots();
+  if (!oneShots) console.warn("Ambient/Template: couldn't find Live's Core Library; drum pads stay empty.");
+  for (let i = 0; i < TEMPLATE_PADS.length; i++) {
+    const pad = TEMPLATE_PADS[i];
+    await progress(i);
+    try {
+      const inserted = await rack.insertChain(rack.chains.length);
+      const chain = context.getObjectFromHandle(inserted.handle, DrumChain);
+      chain.receivingNote = pad.note;
+      const voice = await chain.insertDevice("Simpler", 0);
+      const path = pad.sample && oneShots ? join(oneShots, pad.sample) : null;
+      if (path && existsSync(path)) {
+        await context.getObjectFromHandle(voice.handle, Simpler).replaceSample(path);
+      } else if (pad.sample) {
+        console.warn(`Ambient/Template: missing sample for the ${pad.role} pad: ${pad.sample}.`);
+      }
+      if (pad.role === "kick") {
+        // Nearest octave of the root to the sample's own pitch, so it never stretches far.
+        let semis = Math.round(12 * Math.log2(rootHz / TEMPLATE_KICK_HZ));
+        while (semis < -7) semis += 12;
+        while (semis > 4) semis -= 12;
+        await setParam(voice, "Transpose", semis);
+      }
+    } catch (err) {
+      console.warn(`Ambient/Template: couldn't build the ${pad.role} pad.`, err);
+    }
+  }
+}
+
+/** One Shots/Drums inside the first Live 12 app found in /Applications (macOS). */
+function coreLibraryOneShots(): string | null {
+  try {
+    for (const app of readdirSync("/Applications").filter((n) => n.startsWith("Ableton Live 12"))) {
+      const dir = join("/Applications", app, "Contents/App-Resources/Core Library/Samples/One Shots/Drums");
+      if (existsSync(dir)) return dir;
+    }
+  } catch (err) {
+    console.warn("Ambient/Template: couldn't look for the Core Library.", err);
+  }
+  return null;
+}
+
+/**
+ * The newest pad texture made by textures/gen_textures.py in this key: a file in
+ * User Library/Samples/AI Textures tagged `_dminor_` (say), without a tempo tag
+ * (those are loops) and not marked `_offkey`.
+ */
+function findKeyedTexture(root: number, mode: ModeId): string | null {
+  const dir = join(homedir(), "Music/Ableton/User Library/Samples/AI Textures");
+  const minor = ["aeolian", "dorian", "phrygian", "minPentatonic"].includes(mode);
+  const tag = `_${NOTE_NAMES[root].toLowerCase().replace(/[^a-z]/g, "")}${minor ? "minor" : "major"}_`;
+  try {
+    const matches = readdirSync(dir)
+      .filter((f) => f.endsWith(".wav") && f.includes(tag) && !/bpm|offkey/.test(f))
+      .map((f) => join(dir, f));
+    matches.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+    return matches[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Turn the first two returns into Space (a reverb between high- and low-cuts)
+ * and Echo (a delay into a filter), fully wet. Existing reverbs and delays are
+ * kept and set fully wet rather than replaced.
+ */
+async function buildTemplateReturns(song: Song<"1.0.0">) {
+  const [space, echo] = song.returnTracks;
+  const find = (track: Track<"1.0.0">, ...needles: string[]) =>
+    track.devices.find((d) => needles.some((n) => d.name.toLowerCase().includes(n)));
+
+  if (space) {
+    space.name = "A Space";
+    let reverb = find(space, "reverb");
+    if (!reverb) reverb = (await insertDeviceSafely(space, "Hybrid Reverb")) ?? undefined;
+    if (reverb) await setParam(reverb, "Dry/Wet", 1);
+    if (!find(space, "eq")) {
+      try {
+        const eq = await space.insertDevice("EQ Eight", 0);
+        await highPass(eq, 250);
+        await lowPass(eq, 7000);
+      } catch (err) {
+        console.warn("Ambient/Template: couldn't add the Space EQ.", err);
+      }
+    }
+  }
+  if (echo) {
+    echo.name = "B Echo";
+    let delay = find(echo, "delay", "echo");
+    if (!delay) delay = (await insertDeviceSafely(echo, "Echo")) ?? undefined;
+    if (delay) await setParam(delay, "Dry/Wet", 1);
+    if (!find(echo, "filter")) await insertDeviceSafely(echo, "Auto Filter");
+  }
+}
+
+/** EQ Eight stores band frequency on a log scale from 10 Hz to 22 kHz. */
+function eqFrequency(hz: number): number {
+  return Math.log(hz / 10) / Math.log(22000 / 10);
+}
+
+/** Band 1 of an EQ Eight as a 12 dB/oct high-pass at `hz`. */
+async function highPass(eq: Device<"1.0.0"> | null, hz: number) {
+  if (!eq) return;
+  await setParam(eq, "1 Filter On A", 1);
+  // Filter types run High Pass 48dB, High Pass 12dB, Low Shelf, Bell, Notch, High Shelf, Low Pass 12dB, Low Pass 48dB.
+  await setParamItem(eq, "1 Filter Type A", (n) => /high ?pass/i.test(n) && n.includes("12"), 1);
+  await setParam(eq, "1 Frequency A", eqFrequency(hz));
+}
+
+/** Band 8 of an EQ Eight as a 12 dB/oct low-pass at `hz`. */
+async function lowPass(eq: Device<"1.0.0">, hz: number) {
+  await setParam(eq, "8 Filter On A", 1);
+  await setParamItem(eq, "8 Filter Type A", (n) => /low ?pass/i.test(n) && n.includes("12"), 6);
+  await setParam(eq, "8 Frequency A", eqFrequency(hz));
+}
+
+/**
+ * Set a parameter by exact name (ignoring case, spaces and slashes, so "Dry/Wet"
+ * also finds Echo's "Dry Wet") to a raw value, clamped to its range. Best-effort,
+ * like tuneParam: a missing parameter leaves the device at its default.
+ */
+async function setParam(device: Device<"1.0.0">, name: string, value: number) {
+  const key = (s: string) => s.toLowerCase().replace(/[\s/]/g, "");
+  try {
+    const param = device.parameters.find((p) => key(p.name) === key(name));
+    if (!param) {
+      console.warn(`Ambient: no "${name}" on ${device.name}.`);
+      return;
+    }
+    await param.setValue(Math.min(param.max, Math.max(param.min, value)));
+  } catch (err) {
+    console.warn(`Ambient: couldn't set "${name}" on ${device.name}.`, err);
+  }
+}
+
+/**
+ * Set a stepped parameter to the first value item whose name passes `match`, or
+ * to step `fallback` when the item names don't match (they aren't documented).
+ */
+async function setParamItem(
+  device: Device<"1.0.0">,
+  name: string,
+  match: (item: string) => boolean,
+  fallback: number,
+) {
+  try {
+    const param = device.parameters.find((p) => p.name.toLowerCase() === name.toLowerCase());
+    if (!param) {
+      console.warn(`Ambient: no "${name}" on ${device.name}.`);
+      return;
+    }
+    const items = param.valueItems.map((item) => item.name);
+    let index = items.findIndex(match);
+    if (index < 0) {
+      console.log(`Ambient: "${name}" on ${device.name} has items [${items.join(", ")}]; using step ${fallback}.`);
+      index = fallback;
+    }
+    await param.setValue(param.min + index);
+  } catch (err) {
+    console.warn(`Ambient: couldn't set "${name}" on ${device.name}.`, err);
+  }
+}
+
+/**
  * Find `count` consecutive scene rows that are empty across every one of
  * `tracks`, so we write into existing space instead of piling fresh scenes at
  * the bottom on every run. Reuses the first empty run anywhere; if none fits,
@@ -781,7 +1163,7 @@ async function runPerform(
  */
 async function reserveScenes(
   song: Song<"1.0.0">,
-  tracks: MidiTrack<"1.0.0">[],
+  tracks: Track<"1.0.0">[],
   count: number,
 ): Promise<number> {
   const rowEmpty = (idx: number) =>

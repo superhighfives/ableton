@@ -163,6 +163,7 @@
     <button type="button" class="tab" role="tab" id="tab-bass" data-tab="bass">Bass</button>
     <button type="button" class="tab" role="tab" id="tab-play" data-tab="play">Play</button>
     <button type="button" class="tab" role="tab" id="tab-perform" data-tab="perform">Perform</button>
+    <button type="button" class="tab" role="tab" id="tab-template" data-tab="template">Template</button>
   </div>
 
   <div class="scroll">
@@ -433,6 +434,21 @@
     <label class="check"><input type="checkbox" id="p-vary" checked /><span class="label">Evolve (per-note probability + velocity drift)</span></label>
   </div>
 
+  <!-- Template panel -->
+  <div class="panel" id="panel-template">
+    <div class="hint">
+      Builds a starting set in the current key: Beds, Pad, a 16-pad Drum Rack
+      with the kick tuned to the root, Bass and an armed Play track, with sends
+      dialled in. Best run on a new Live Set; then use File → Save Live Set As
+      Template.
+    </div>
+    <div class="section">
+      <label class="check"><input type="checkbox" id="t-returns" checked /><span class="label">Set up returns A and B as Space and Echo</span></label>
+      <label class="check"><input type="checkbox" id="t-scenes" checked /><span class="label">Arrangement scenes (Fog → Tail)</span></label>
+      <label class="check"><input type="checkbox" id="t-clips" checked /><span class="label">Starter clips (half-time beat, bass on the root)</span></label>
+    </div>
+  </div>
+
   <div class="section">
     <div class="heading">Sound <small id="sound-scope" style="text-transform:none;letter-spacing:0;color:var(--c-text-secondary)">· bed &amp; chords</small></div>
     <select id="instrument" class="alx-select" aria-label="Instrument"></select>
@@ -584,9 +600,15 @@
       bass: document.getElementById("panel-bass"),
       play: document.getElementById("panel-play"),
       perform: document.getElementById("panel-perform"),
+      template: document.getElementById("panel-template"),
     };
     // The Sound section means something a little different per tab.
-    const SOUND_SCOPE = { perform: "· bed & chords", play: "· your instrument", rhythm: "· drums use a Drum Rack" };
+    const SOUND_SCOPE = {
+      perform: "· bed & chords",
+      play: "· your instrument",
+      rhythm: "· drums use a Drum Rack",
+      template: "· the Play track",
+    };
     function setTab(next) {
       if (!panels[next]) return; // ignore disabled tabs
       tab = next;
@@ -606,6 +628,8 @@
       }
       // Rhythm forces a Drum Rack, so the instrument choice doesn't apply there.
       document.getElementById("instrument").disabled = tab === "rhythm";
+      // Template puts its space on the returns, not on each track.
+      document.getElementById("addFx").disabled = tab === "template";
     }
     document.querySelectorAll(".tab").forEach((b) =>
       b.addEventListener("click", () => setTab(b.dataset.tab)),
@@ -711,6 +735,11 @@
           playInstrument: playSel.value,
           softenMix: document.getElementById("p-soften").checked,
           vary: document.getElementById("p-vary").checked,
+        },
+        template: {
+          returns: document.getElementById("t-returns").checked,
+          scenes: document.getElementById("t-scenes").checked,
+          clips: document.getElementById("t-clips").checked,
         },
       });
     }
